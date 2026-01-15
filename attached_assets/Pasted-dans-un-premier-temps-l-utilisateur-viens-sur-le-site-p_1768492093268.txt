@@ -1,0 +1,119 @@
+dans un premier temps l'utilisateur viens sur le site pour pour chercher un num de france ou etat unis . l'objectif est de fournir un num pour recevoir des sms  sans forcément y répondre
+Edit
+Copy
+Share
+Search
+numéro États-Unis SMS recevoir sans répondre
+16 results
+Voici le flux « zéro-réponse » le plus simple pour que l’utilisateur choisisse un numéro France ou États-Unis, ne recoive que les SMS, et n’ait jamais à répondre.
+1) Choix du fournisseur
+Deux options sans engagement et sans carte SIM :
+Table
+Copy
+Option	Prix	Pays dispos	Durée de vie	Réponse possible ?
+SMSOnline	0 €	France, USA, 20+	24 h (renouvelés chaque jour)	❌
+Sonetel	1,79 €/mois	France, USA, 70+	aussi longtemps que payé	❌ (SMS→mail uniquement)
+2) Intégration ultra-rapide dans ton site
+A) Version 100 % gratuite (SMSOnline)
+→ tu scrapes la page quotidienne ou tu rediriges l’utilisateur :
+http
+Copy
+https://www.smsonline.cloud/fr/country/France        # numéros FR
+https://www.smsonline.cloud/fr/country/United-States # numéros US
+Chaque numéro a sa page publique ; le SMS apparaît en moins de 30 s.
+Aucune clé API, mais tu peux afficher en iframe ou scraper le contenu.
+B) Version « numéro perso » (Sonetel)
+Appel REST unique pour réserver :
+bash
+Copy
+curl -X POST https://api.sonetel.com/number/buy \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{"country_iso":"FR","type":"mobile"}'
+SMS reçus = webhook (JSON) ou e-mail instantané ; tu les affiches dans ton dashboard.
+Pas de réponse : Sonetel n’autorise pas l’envoi depuis ces numéros .
+3) Micro-flask d’exemple (gratuit)
+Python
+Copy
+from flask import Flask, render_template_string
+import requests, re, lxml.html
+
+app = Flask(__name__)
+
+@app.route("/<pays>")  # pays = france  ou  united-states
+def nums(pays):
+    url = f"https://www.smsonline.cloud/fr/country/{pays.capitalize()}"
+    doc = lxml.html.fromstring(requests.get(url, timeout=10).text)
+    nums = doc.xpath('//a[contains(@href,"/number/")]/text()')
+    return render_template_string("""
+    <h2>Numéros {{pays}} disponibles maintenant</h2>
+    <ul>{% for n in nums %}<li>{{n}}</li>{% endfor %}</ul>
+    <p> Rafraîchir dans 30 s pour voir les SMS arriver.</p>
+    """, nums=nums, pays=pays)
+
+if __name__ == "__main__":
+    app.run(port=5000)
+L’utilisateur clique sur un numéro, le copie, le colle dans le service tiers, revient sur la page ; le code de vérification apparaît sans qu’il ait à répondre.
+4) Récap – ce que tu livres à l’utilisateur
+✅ Sélection France ou USA en 1 clic
+✅ Pas d’inscription côté utilisateur
+✅ Réception SMS en < 30 s
+✅ Zéro possibilité (et zéro besoin) de répondre
+✅ Coût : 0 € (SMSOnline) ou 1,79 €/mois (Sonetel) 
+Tu peux switcher vers Sonetel dès que tu veux des numéros non-publics et garder le même code ; seul change la source de données (API au lieu de scraping).
+C’est opérationnel en 5 min avec le snippet ci-dessus.
+
+
+Reference
+a combien peut facturer ce service pour que ce soit rentable
+Edit
+Copy
+Share
+Search
+Cost Analysis of Virtual Number Service
+19 results
+🔖 Objectif
+Fournir un numéro France ou USA qui ne sert qu’à recevoir des SMS (pas d’envoi, pas de réponse) et faire payer l’utilisateur tout en gardant une marge > 50 %.
+1) Coût réel de revient (hors développement)
+Table
+Copy
+Poste	Prix constaté 2026	Source
+Numéro France mobile loué via Twilio	1 € / mois	Twilio 2026
+Numéro USA mobile loué via Twilio	1 $ / mois ≈ 0,95 €	Twilio 2026
+Bande-passante / webhook / stockage	≈ 0,05 € par numéro	interne
+Coût total par numéro et par mois	≈ 1 €	
+Les SMS entrants sont gratuits chez la plupart des fournisseurs API .
+2) Prix public conseillé pour être rentable dès le 1ʳᵉ mois
+Table
+Copy
+Formule	Prix public	Marge brute	Remarque
+Pay-as-you-go	2 € / numéro / 24 h	≈ 1 € (50 %)	facturation immédiate, accès iframe ou API
+Pack 7 jours	5 €	≈ 3,65 € (73 %)	expiration automatique, aucun renouvellement caché
+Pack 30 jours	9 €	≈ 8 € (89 %)	meilleur rapport pour l’utilisateur, plus value pour vous
+Des sites comparables (SMSOnline, AnonymSMS) affichent 0 € mais vendent la pub ; Sonetel facture 1,79 /mois∗∗[ 
+2
+ 5 
+]
+ ;∗∗TextMagic∗∗∗∗59  / 1 000 SMS  → vous pouvez donc positionner 9 € / mois sans être plus cher qu’un vrai forfait tout en restant dans la norme du marché.
+3) Exemple de business case rapide
+Table
+Copy
+Hypothèse	Chiffre	Calcul
+Numéros actifs en même temps	100	100 × 9 € = 900 €
+Coût Twilio	100 €	100 × 1 €
+Marge brute mensuelle	800 €	800 / 900 ≈ 89 %
+Même avec 50 % de réduction promo, la marge reste > 70 %.
+4) Ce que vous facturez concrètement
+Accès à un dashboard : gratuit
+Location du numéro actif : 2 € / jour, 5 € / semaine, 9 € / mois
+SMS reçus : illimités & gratuits (inclus)
+Réponse / envoi : impossible (pas d’option → coût 0)
+5) Psychologie prix
+Seuil psychologique : < 10 € = achat impulsif 
+Ancrage : afficher 2 € / 24 h puis 9 € / 30 j → l’utilisateur choisit le mois (marge max)
+Paiement : Stripe 1-click, Pas d’engagement, annulation auto à l’expiration
+✅ Conclusion
+Table
+Copy
+Prix public	Marge cible	Rentabilité
+9 € / mois (ou 5 € / semaine)	80-90 %	immédiate dès 12-15 numéros actifs
+Ce pricing vous place sans sur-coût par rapport à un vrai forfait mobile, tout en démultipliant la marge grâce au modèle « numéro jetable » sans envoi.
