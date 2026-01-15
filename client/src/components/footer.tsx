@@ -7,7 +7,7 @@ export function Footer() {
       <div className="container px-4 py-12 md:px-6">
         <div className="grid gap-8 md:grid-cols-4">
           <div className="md:col-span-2">
-            <Link href="/" className="flex items-center gap-2 mb-4">
+            <Link href="/" className="flex items-center gap-2 mb-4" data-testid="link-footer-logo">
               <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
                 <MessageSquare className="h-5 w-5 text-primary-foreground" />
               </div>
