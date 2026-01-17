@@ -26,6 +26,7 @@ export const phoneNumbers = pgTable("phone_numbers", {
   country: text("country").notNull().$type<Country>(),
   isAvailable: boolean("is_available").notNull().default(true),
   isValid: boolean("is_valid").notNull().default(true),
+  usageCount: integer("usage_count").notNull().default(0),
   lastValidatedAt: timestamp("last_validated_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -87,6 +88,26 @@ export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({
 
 export type InsertSmsMessage = z.infer<typeof insertSmsMessageSchema>;
 export type SmsMessage = typeof smsMessages.$inferSelect;
+
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+
+export const numberAlerts = pgTable("number_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),
+  alertType: text("alert_type").notNull(),
+  usageCountAtAlert: integer("usage_count_at_alert").notNull(),
+  emailSent: boolean("email_sent").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type NumberAlert = typeof numberAlerts.$inferSelect;
 
 export interface PricingPlan {
   id: string;

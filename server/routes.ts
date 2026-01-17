@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { type Country, pricingPlans } from "@shared/schema";
 import * as twilioService from "./twilio-service";
+import * as numberMonitor from "./number-monitor";
+import { isEmailConfigured } from "./email-service";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -255,6 +257,136 @@ export async function registerRoutes(
       });
     }
   });
+
+  app.get("/api/admin/stats", async (req, res) => {
+    try {
+      const stats = await numberMonitor.getMonitoringStats();
+      const emailConfigured = isEmailConfigured();
+      const twilioConfigured = twilioService.isConfigured();
+      
+      const usageThreshold = await storage.getSetting("usage_alert_threshold") || "100";
+      const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled") || "false";
+      const minPerCountry = await storage.getSetting("min_numbers_per_country") || "3";
+      
+      res.json({
+        ...stats,
+        settings: {
+          usageAlertThreshold: parseInt(usageThreshold),
+          autoPurchaseEnabled: autoPurchaseEnabled === "true",
+          minNumbersPerCountry: parseInt(minPerCountry),
+        },
+        services: {
+          emailConfigured,
+          twilioConfigured,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ error: "Failed to fetch admin stats" });
+    }
+  });
+
+  app.post("/api/admin/settings", async (req, res) => {
+    try {
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail } = req.body;
+      
+      if (usageAlertThreshold !== undefined) {
+        await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
+      }
+      if (autoPurchaseEnabled !== undefined) {
+        await storage.setSetting("auto_purchase_enabled", String(autoPurchaseEnabled));
+      }
+      if (minNumbersPerCountry !== undefined) {
+        await storage.setSetting("min_numbers_per_country", String(minNumbersPerCountry));
+      }
+      if (adminEmail !== undefined) {
+        await storage.setSetting("admin_email", adminEmail);
+      }
+      
+      res.json({ message: "Settings updated successfully" });
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  app.post("/api/admin/run-monitoring", async (req, res) => {
+    try {
+      const stats = await numberMonitor.runMonitoringCycle();
+      res.json({
+        message: "Monitoring cycle completed",
+        stats,
+      });
+    } catch (error) {
+      console.error("Error running monitoring:", error);
+      res.status(500).json({ error: "Failed to run monitoring" });
+    }
+  });
+
+  app.get("/api/admin/numbers", async (req, res) => {
+    try {
+      const numbers = await storage.getAllPhoneNumbers();
+      res.json(numbers.map(n => ({
+        id: n.id,
+        number: n.number,
+        country: n.country,
+        usageCount: n.usageCount,
+        isAvailable: n.isAvailable,
+        isValid: n.isValid,
+        createdAt: n.createdAt.toISOString(),
+      })));
+    } catch (error) {
+      console.error("Error fetching all numbers:", error);
+      res.status(500).json({ error: "Failed to fetch numbers" });
+    }
+  });
+
+  app.post("/api/admin/purchase-number", async (req, res) => {
+    try {
+      if (!twilioService.isConfigured()) {
+        return res.status(503).json({ error: "Twilio is not configured" });
+      }
+      
+      const { country } = req.body;
+      if (!country || (country !== "france" && country !== "usa")) {
+        return res.status(400).json({ error: "Invalid country. Use 'france' or 'usa'." });
+      }
+      
+      const countryCode = country === "france" ? "FR" : "US";
+      const available = await twilioService.searchAvailableNumbers(countryCode, 1);
+      
+      if (available.length === 0) {
+        return res.status(404).json({ error: "No numbers available for purchase in this region" });
+      }
+      
+      const purchased = await twilioService.purchasePhoneNumber(available[0].phoneNumber);
+      if (!purchased) {
+        return res.status(500).json({ error: "Failed to purchase number" });
+      }
+      
+      const phoneNumber = await storage.createPhoneNumber({
+        twilioSid: purchased.sid,
+        number: purchased.phoneNumber,
+        country: country as Country,
+        isAvailable: true,
+        isValid: true,
+      });
+      
+      res.json({
+        message: "Number purchased successfully",
+        phoneNumber: {
+          id: phoneNumber.id,
+          number: phoneNumber.number,
+          country: phoneNumber.country,
+        },
+      });
+    } catch (error) {
+      console.error("Error purchasing number:", error);
+      res.status(500).json({ error: "Failed to purchase number" });
+    }
+  });
+
+  numberMonitor.startMonitoring(5 * 60 * 1000);
 
   return httpServer;
 }

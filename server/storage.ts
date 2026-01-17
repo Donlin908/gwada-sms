@@ -1,4 +1,4 @@
-import { eq, and, gt, lt } from "drizzle-orm";
+import { eq, and, gt, lt, gte } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -12,11 +12,15 @@ import {
   type UsageHistory,
   type InsertUsageHistory,
   type Country,
+  type SystemSetting,
+  type NumberAlert,
   users,
   phoneNumbers,
   smsMessages,
   reservations,
   usageHistory,
+  systemSettings,
+  numberAlerts,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -42,6 +46,17 @@ export interface IStorage {
   recordUsage(data: InsertUsageHistory): Promise<UsageHistory>;
   getUsageHistory(phoneNumberId: string): Promise<UsageHistory[]>;
   hasBeenUsedBySession(phoneNumberId: string, sessionId: string): Promise<boolean>;
+  
+  incrementUsageCount(phoneNumberId: string): Promise<number>;
+  getNumbersNearingLimit(threshold: number): Promise<PhoneNumber[]>;
+  getAllPhoneNumbers(): Promise<PhoneNumber[]>;
+  
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string): Promise<void>;
+  
+  createAlert(phoneNumberId: string, alertType: string, usageCount: number): Promise<NumberAlert>;
+  getUnsentAlerts(): Promise<NumberAlert[]>;
+  markAlertSent(alertId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -178,6 +193,60 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(1);
     return !!usage;
+  }
+
+  async incrementUsageCount(phoneNumberId: string): Promise<number> {
+    const [number] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId)).limit(1);
+    if (!number) return 0;
+    
+    const newCount = (number.usageCount || 0) + 1;
+    await db.update(phoneNumbers).set({ usageCount: newCount }).where(eq(phoneNumbers.id, phoneNumberId));
+    return newCount;
+  }
+
+  async getNumbersNearingLimit(threshold: number): Promise<PhoneNumber[]> {
+    return db.select().from(phoneNumbers).where(
+      and(
+        gte(phoneNumbers.usageCount, threshold),
+        eq(phoneNumbers.isValid, true)
+      )
+    );
+  }
+
+  async getAllPhoneNumbers(): Promise<PhoneNumber[]> {
+    return db.select().from(phoneNumbers);
+  }
+
+  async getSetting(key: string): Promise<string | undefined> {
+    const [setting] = await db.select().from(systemSettings).where(eq(systemSettings.key, key)).limit(1);
+    return setting?.value;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    const existing = await this.getSetting(key);
+    if (existing !== undefined) {
+      await db.update(systemSettings).set({ value, updatedAt: new Date() }).where(eq(systemSettings.key, key));
+    } else {
+      await db.insert(systemSettings).values({ key, value });
+    }
+  }
+
+  async createAlert(phoneNumberId: string, alertType: string, usageCount: number): Promise<NumberAlert> {
+    const [alert] = await db.insert(numberAlerts).values({
+      phoneNumberId,
+      alertType,
+      usageCountAtAlert: usageCount,
+      emailSent: false,
+    }).returning();
+    return alert;
+  }
+
+  async getUnsentAlerts(): Promise<NumberAlert[]> {
+    return db.select().from(numberAlerts).where(eq(numberAlerts.emailSent, false));
+  }
+
+  async markAlertSent(alertId: string): Promise<void> {
+    await db.update(numberAlerts).set({ emailSent: true }).where(eq(numberAlerts.id, alertId));
   }
 }
 

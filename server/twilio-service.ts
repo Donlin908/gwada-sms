@@ -129,3 +129,78 @@ export async function getMessagesForNumber(phoneNumber: string): Promise<TwilioM
 export function isConfigured(): boolean {
   return client !== null;
 }
+
+export interface AvailableNumberToPurchase {
+  phoneNumber: string;
+  friendlyName: string;
+  locality: string;
+  region: string;
+  isoCountry: string;
+}
+
+export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: number = 5): Promise<AvailableNumberToPurchase[]> {
+  if (!client) {
+    console.log("Twilio client not available");
+    return [];
+  }
+
+  try {
+    const numbers = await client.availablePhoneNumbers(countryCode)
+      .local
+      .list({ smsEnabled: true, limit });
+
+    return numbers.map(num => ({
+      phoneNumber: num.phoneNumber,
+      friendlyName: num.friendlyName,
+      locality: num.locality || "",
+      region: num.region || "",
+      isoCountry: num.isoCountry,
+    }));
+  } catch (error) {
+    console.error("Error searching available numbers:", error);
+    return [];
+  }
+}
+
+export interface PurchasedNumber {
+  sid: string;
+  phoneNumber: string;
+  friendlyName: string;
+}
+
+export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: string): Promise<PurchasedNumber | null> {
+  if (!client) {
+    console.log("Twilio client not available");
+    return null;
+  }
+
+  try {
+    const purchased = await client.incomingPhoneNumbers.create({
+      phoneNumber,
+      friendlyName: friendlyName || `NumeroSMS-${new Date().toISOString().split('T')[0]}`,
+    });
+
+    return {
+      sid: purchased.sid,
+      phoneNumber: purchased.phoneNumber,
+      friendlyName: purchased.friendlyName,
+    };
+  } catch (error) {
+    console.error("Error purchasing phone number:", error);
+    return null;
+  }
+}
+
+export async function releasePhoneNumber(phoneNumberSid: string): Promise<boolean> {
+  if (!client) {
+    return false;
+  }
+
+  try {
+    await client.incomingPhoneNumbers(phoneNumberSid).remove();
+    return true;
+  } catch (error) {
+    console.error("Error releasing phone number:", error);
+    return false;
+  }
+}
