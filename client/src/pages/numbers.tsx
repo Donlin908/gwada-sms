@@ -9,7 +9,7 @@ import { NumberCard } from "@/components/number-card";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { type Country, type PhoneNumber } from "@shared/schema";
+import { type Country, type PhoneNumberResponse } from "@shared/schema";
 
 export default function Numbers() {
   const [location] = useLocation();
@@ -18,7 +18,7 @@ export default function Numbers() {
   
   const [selectedCountry, setSelectedCountry] = useState<Country>(initialCountry);
 
-  const { data: numbers, isLoading, refetch, isRefetching } = useQuery<PhoneNumber[]>({
+  const { data: numbers, isLoading, refetch, isRefetching } = useQuery<PhoneNumberResponse[]>({
     queryKey: [`/api/numbers?country=${selectedCountry}`],
   });
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -19,15 +19,96 @@ export type User = typeof users.$inferSelect;
 
 export type Country = "france" | "usa";
 
-export interface PhoneNumber {
+export const phoneNumbers = pgTable("phone_numbers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  twilioSid: text("twilio_sid").notNull().unique(),
+  number: text("number").notNull(),
+  country: text("country").notNull().$type<Country>(),
+  isAvailable: boolean("is_available").notNull().default(true),
+  isValid: boolean("is_valid").notNull().default(true),
+  lastValidatedAt: timestamp("last_validated_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertPhoneNumberSchema = createInsertSchema(phoneNumbers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPhoneNumber = z.infer<typeof insertPhoneNumberSchema>;
+export type PhoneNumber = typeof phoneNumbers.$inferSelect;
+
+export const reservations = pgTable("reservations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),
+  planId: text("plan_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  startsAt: timestamp("starts_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertReservationSchema = createInsertSchema(reservations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertReservation = z.infer<typeof insertReservationSchema>;
+export type Reservation = typeof reservations.$inferSelect;
+
+export const usageHistory = pgTable("usage_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),
+  sessionId: text("session_id").notNull(),
+  usedAt: timestamp("used_at").notNull().defaultNow(),
+  purpose: text("purpose"),
+});
+
+export const insertUsageHistorySchema = createInsertSchema(usageHistory).omit({
+  id: true,
+});
+
+export type InsertUsageHistory = z.infer<typeof insertUsageHistorySchema>;
+export type UsageHistory = typeof usageHistory.$inferSelect;
+
+export const smsMessages = pgTable("sms_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),
+  twilioMessageSid: text("twilio_message_sid").unique(),
+  sender: text("sender").notNull(),
+  content: text("content").notNull(),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+});
+
+export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({
+  id: true,
+});
+
+export type InsertSmsMessage = z.infer<typeof insertSmsMessageSchema>;
+export type SmsMessage = typeof smsMessages.$inferSelect;
+
+export interface PricingPlan {
+  id: string;
+  name: string;
+  duration: string;
+  durationHours: number;
+  price: number;
+  savings?: string;
+  features: string[];
+  isRecommended: boolean;
+}
+
+export interface PhoneNumberResponse {
   id: string;
   number: string;
   country: Country;
   isAvailable: boolean;
+  isValid: boolean;
   lastActive: string;
 }
 
-export interface SmsMessage {
+export interface SmsMessageResponse {
   id: string;
   phoneNumberId: string;
   sender: string;
@@ -35,21 +116,12 @@ export interface SmsMessage {
   receivedAt: string;
 }
 
-export interface PricingPlan {
-  id: string;
-  name: string;
-  duration: string;
-  price: number;
-  savings?: string;
-  features: string[];
-  isRecommended: boolean;
-}
-
 export const pricingPlans: PricingPlan[] = [
   {
     id: "daily",
     name: "24 Heures",
     duration: "24h",
+    durationHours: 24,
     price: 2,
     features: [
       "1 numéro au choix",
@@ -63,6 +135,7 @@ export const pricingPlans: PricingPlan[] = [
     id: "weekly",
     name: "7 Jours",
     duration: "7 jours",
+    durationHours: 24 * 7,
     price: 5,
     savings: "Économisez 64%",
     features: [
@@ -78,6 +151,7 @@ export const pricingPlans: PricingPlan[] = [
     id: "monthly",
     name: "30 Jours",
     duration: "30 jours",
+    durationHours: 24 * 30,
     price: 9,
     savings: "Meilleure offre",
     features: [

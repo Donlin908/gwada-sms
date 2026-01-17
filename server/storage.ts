@@ -1,126 +1,184 @@
-import { type User, type InsertUser, type PhoneNumber, type SmsMessage, type Country } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { eq, and, gt, lt } from "drizzle-orm";
+import { db } from "./db";
+import {
+  type User,
+  type InsertUser,
+  type PhoneNumber,
+  type InsertPhoneNumber,
+  type SmsMessage,
+  type InsertSmsMessage,
+  type Reservation,
+  type InsertReservation,
+  type UsageHistory,
+  type InsertUsageHistory,
+  type Country,
+  users,
+  phoneNumbers,
+  smsMessages,
+  reservations,
+  usageHistory,
+} from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
   getPhoneNumbers(country: Country): Promise<PhoneNumber[]>;
   getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
+  getPhoneNumberByTwilioSid(twilioSid: string): Promise<PhoneNumber | undefined>;
+  createPhoneNumber(data: InsertPhoneNumber): Promise<PhoneNumber>;
+  updatePhoneNumberAvailability(id: string, isAvailable: boolean): Promise<void>;
+  updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void>;
+  
   getMessages(phoneNumberId: string): Promise<SmsMessage[]>;
+  createMessage(data: InsertSmsMessage): Promise<SmsMessage>;
+  getMessageByTwilioSid(twilioMessageSid: string): Promise<SmsMessage | undefined>;
+  
+  getActiveReservation(phoneNumberId: string): Promise<Reservation | undefined>;
+  createReservation(data: InsertReservation): Promise<Reservation>;
+  expireOldReservations(): Promise<void>;
+  
+  recordUsage(data: InsertUsageHistory): Promise<UsageHistory>;
+  getUsageHistory(phoneNumberId: string): Promise<UsageHistory[]>;
+  hasBeenUsedBySession(phoneNumberId: string, sessionId: string): Promise<boolean>;
 }
 
-const frenchNumbers: PhoneNumber[] = [
-  { id: "fr-1", number: "+33 6 12 34 56 78", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "fr-2", number: "+33 6 98 76 54 32", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "fr-3", number: "+33 7 11 22 33 44", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "fr-4", number: "+33 6 55 66 77 88", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "fr-5", number: "+33 7 99 88 77 66", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "fr-6", number: "+33 6 44 33 22 11", country: "france", isAvailable: true, lastActive: new Date().toISOString() },
-];
-
-const usaNumbers: PhoneNumber[] = [
-  { id: "us-1", number: "+1 (555) 123-4567", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "us-2", number: "+1 (555) 987-6543", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "us-3", number: "+1 (555) 246-8135", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "us-4", number: "+1 (555) 369-2580", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "us-5", number: "+1 (555) 741-8520", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-  { id: "us-6", number: "+1 (555) 852-9630", country: "usa", isAvailable: true, lastActive: new Date().toISOString() },
-];
-
-const allNumbers = [...frenchNumbers, ...usaNumbers];
-
-const sampleMessages: SmsMessage[] = [
-  {
-    id: "msg-1",
-    phoneNumberId: "fr-1",
-    sender: "+33 1 00 00 00 01",
-    content: "Votre code de vérification est: 847291. Ne partagez ce code avec personne.",
-    receivedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "msg-2",
-    phoneNumberId: "fr-1",
-    sender: "+33 1 00 00 00 02",
-    content: "Bienvenue! Votre compte a été créé avec succès. Code: 123456",
-    receivedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "msg-3",
-    phoneNumberId: "fr-2",
-    sender: "AMAZON",
-    content: "Votre code Amazon est 582614. Ne le partagez avec personne.",
-    receivedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "msg-4",
-    phoneNumberId: "us-1",
-    sender: "+1 (800) 555-0199",
-    content: "Your verification code is: 934721. This code expires in 10 minutes.",
-    receivedAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "msg-5",
-    phoneNumberId: "us-1",
-    sender: "GOOGLE",
-    content: "G-582914 is your Google verification code.",
-    receivedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "msg-6",
-    phoneNumberId: "us-2",
-    sender: "UBER",
-    content: "Your Uber code is 7482. Never share this code.",
-    receivedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-  },
-];
-
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private phoneNumbers: Map<string, PhoneNumber>;
-  private messages: Map<string, SmsMessage>;
-
-  constructor() {
-    this.users = new Map();
-    this.phoneNumbers = new Map();
-    this.messages = new Map();
-
-    allNumbers.forEach((num) => this.phoneNumbers.set(num.id, num));
-    sampleMessages.forEach((msg) => this.messages.set(msg.id, msg));
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getPhoneNumbers(country: Country): Promise<PhoneNumber[]> {
-    return Array.from(this.phoneNumbers.values()).filter(
-      (num) => num.country === country && num.isAvailable
-    );
+    return db
+      .select()
+      .from(phoneNumbers)
+      .where(
+        and(
+          eq(phoneNumbers.country, country),
+          eq(phoneNumbers.isAvailable, true),
+          eq(phoneNumbers.isValid, true)
+        )
+      );
   }
 
   async getPhoneNumber(id: string): Promise<PhoneNumber | undefined> {
-    return this.phoneNumbers.get(id);
+    const [number] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, id)).limit(1);
+    return number;
+  }
+
+  async getPhoneNumberByTwilioSid(twilioSid: string): Promise<PhoneNumber | undefined> {
+    const [number] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.twilioSid, twilioSid)).limit(1);
+    return number;
+  }
+
+  async createPhoneNumber(data: InsertPhoneNumber): Promise<PhoneNumber> {
+    const [number] = await db.insert(phoneNumbers).values(data).returning();
+    return number;
+  }
+
+  async updatePhoneNumberAvailability(id: string, isAvailable: boolean): Promise<void> {
+    await db.update(phoneNumbers).set({ isAvailable }).where(eq(phoneNumbers.id, id));
+  }
+
+  async updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void> {
+    await db.update(phoneNumbers).set({ isValid, lastValidatedAt: new Date() }).where(eq(phoneNumbers.id, id));
   }
 
   async getMessages(phoneNumberId: string): Promise<SmsMessage[]> {
-    return Array.from(this.messages.values())
-      .filter((msg) => msg.phoneNumberId === phoneNumberId)
-      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    return db
+      .select()
+      .from(smsMessages)
+      .where(eq(smsMessages.phoneNumberId, phoneNumberId))
+      .orderBy(smsMessages.receivedAt);
+  }
+
+  async createMessage(data: InsertSmsMessage): Promise<SmsMessage> {
+    const [message] = await db.insert(smsMessages).values(data).returning();
+    return message;
+  }
+
+  async getMessageByTwilioSid(twilioMessageSid: string): Promise<SmsMessage | undefined> {
+    const [message] = await db.select().from(smsMessages).where(eq(smsMessages.twilioMessageSid, twilioMessageSid)).limit(1);
+    return message;
+  }
+
+  async getActiveReservation(phoneNumberId: string): Promise<Reservation | undefined> {
+    const now = new Date();
+    const [reservation] = await db
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.phoneNumberId, phoneNumberId),
+          eq(reservations.isActive, true),
+          gt(reservations.expiresAt, now)
+        )
+      )
+      .limit(1);
+    return reservation;
+  }
+
+  async createReservation(data: InsertReservation): Promise<Reservation> {
+    const [reservation] = await db.insert(reservations).values(data).returning();
+    await this.updatePhoneNumberAvailability(data.phoneNumberId, false);
+    return reservation;
+  }
+
+  async expireOldReservations(): Promise<void> {
+    const now = new Date();
+    const expired = await db
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.isActive, true),
+          lt(reservations.expiresAt, now)
+        )
+      );
+
+    for (const reservation of expired) {
+      await db
+        .update(reservations)
+        .set({ isActive: false })
+        .where(eq(reservations.id, reservation.id));
+      await this.updatePhoneNumberAvailability(reservation.phoneNumberId, true);
+    }
+  }
+
+  async recordUsage(data: InsertUsageHistory): Promise<UsageHistory> {
+    const [usage] = await db.insert(usageHistory).values(data).returning();
+    return usage;
+  }
+
+  async getUsageHistory(phoneNumberId: string): Promise<UsageHistory[]> {
+    return db.select().from(usageHistory).where(eq(usageHistory.phoneNumberId, phoneNumberId));
+  }
+
+  async hasBeenUsedBySession(phoneNumberId: string, sessionId: string): Promise<boolean> {
+    const [usage] = await db
+      .select()
+      .from(usageHistory)
+      .where(
+        and(
+          eq(usageHistory.phoneNumberId, phoneNumberId),
+          eq(usageHistory.sessionId, sessionId)
+        )
+      )
+      .limit(1);
+    return !!usage;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

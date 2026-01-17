@@ -1,10 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { type SmsMessage } from "@shared/schema";
+import { type SmsMessageResponse } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface SmsMessageCardProps {
-  message: SmsMessage;
+  message: SmsMessageResponse;
 }
 
 export function SmsMessageCard({ message }: SmsMessageCardProps) {

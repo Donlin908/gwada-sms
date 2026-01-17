@@ -4,11 +4,11 @@ import { Check, Copy, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { type PhoneNumber } from "@shared/schema";
+import { type PhoneNumberResponse } from "@shared/schema";
 import { FranceFlag, UsaFlag } from "./flag-icons";
 
 interface NumberCardProps {
-  phoneNumber: PhoneNumber;
+  phoneNumber: PhoneNumberResponse;
 }
 
 export function NumberCard({ phoneNumber }: NumberCardProps) {

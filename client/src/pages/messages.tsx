@@ -10,18 +10,18 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { type PhoneNumber, type SmsMessage } from "@shared/schema";
+import { type PhoneNumberResponse, type SmsMessageResponse } from "@shared/schema";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
 
 export default function Messages() {
   const { id } = useParams<{ id: string }>();
   const [copied, setCopied] = useState(false);
 
-  const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumber>({
+  const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
   });
 
-  const { data: messages, isLoading: isLoadingMessages, refetch, isRefetching } = useQuery<SmsMessage[]>({
+  const { data: messages, isLoading: isLoadingMessages, refetch, isRefetching } = useQuery<SmsMessageResponse[]>({
     queryKey: [`/api/messages/${id}`],
     refetchInterval: 10000,
   });
