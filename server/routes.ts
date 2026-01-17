@@ -5,6 +5,18 @@ import { type Country, pricingPlans } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { isEmailConfigured } from "./email-service";
+import { z } from "zod";
+
+const adminSettingsSchema = z.object({
+  usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
+  autoPurchaseEnabled: z.boolean().optional(),
+  minNumbersPerCountry: z.number().int().min(1).max(100).optional(),
+  adminEmail: z.string().email().optional(),
+});
+
+const purchaseNumberSchema = z.object({
+  country: z.enum(["france", "usa"]),
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -288,7 +300,15 @@ export async function registerRoutes(
 
   app.post("/api/admin/settings", async (req, res) => {
     try {
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail } = req.body;
+      const parseResult = adminSettingsSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid settings data", 
+          details: parseResult.error.errors 
+        });
+      }
+      
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -347,10 +367,12 @@ export async function registerRoutes(
         return res.status(503).json({ error: "Twilio is not configured" });
       }
       
-      const { country } = req.body;
-      if (!country || (country !== "france" && country !== "usa")) {
+      const parseResult = purchaseNumberSchema.safeParse(req.body);
+      if (!parseResult.success) {
         return res.status(400).json({ error: "Invalid country. Use 'france' or 'usa'." });
       }
+      
+      const { country } = parseResult.data;
       
       const countryCode = country === "france" ? "FR" : "US";
       const available = await twilioService.searchAvailableNumbers(countryCode, 1);

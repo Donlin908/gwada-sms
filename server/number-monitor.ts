@@ -20,28 +20,34 @@ export async function checkAndAlertHighUsage(): Promise<number> {
   const threshold = parseInt(await storage.getSetting("usage_alert_threshold") || String(USAGE_ALERT_THRESHOLD));
   const numbersAtLimit = await storage.getNumbersNearingLimit(threshold);
   
+  const existingAlerts = await storage.getAllAlerts();
+  const alertedNumberIds = new Set(
+    existingAlerts
+      .filter(a => a.alertType === "usage_limit")
+      .map(a => a.phoneNumberId)
+  );
+  
   let alertsSent = 0;
   
   for (const number of numbersAtLimit) {
-    const existingAlerts = await storage.getUnsentAlerts();
-    const alreadyAlerted = existingAlerts.some(a => 
-      a.phoneNumberId === number.id && a.alertType === "usage_limit"
-    );
+    if (alertedNumberIds.has(number.id)) {
+      continue;
+    }
     
-    if (!alreadyAlerted) {
-      const alert = await storage.createAlert(number.id, "usage_limit", number.usageCount);
-      
-      const emailSent = await sendUsageAlert({
-        phoneNumber: number.number,
-        country: number.country,
-        usageCount: number.usageCount,
-        threshold,
-      });
-      
-      if (emailSent) {
-        await storage.markAlertSent(alert.id);
-        alertsSent++;
-      }
+    const alert = await storage.createAlert(number.id, "usage_limit", number.usageCount);
+    
+    const emailSent = await sendUsageAlert({
+      phoneNumber: number.number,
+      country: number.country,
+      usageCount: number.usageCount,
+      threshold,
+    });
+    
+    await storage.markAlertSent(alert.id);
+    alertsSent++;
+    
+    if (!emailSent) {
+      console.log(`Email not sent for ${number.number}, but alert recorded to prevent duplicates`);
     }
   }
   
@@ -60,19 +66,19 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
     return [];
   }
   
-  const threshold = parseInt(await storage.getSetting("auto_purchase_threshold") || String(AUTO_PURCHASE_THRESHOLD));
   const minPerCountry = parseInt(await storage.getSetting("min_numbers_per_country") || String(MIN_NUMBERS_PER_COUNTRY));
   
   const allNumbers = await storage.getAllPhoneNumbers();
   const purchasedNumbers: string[] = [];
   
   for (const country of ["france", "usa"] as Country[]) {
-    const countryNumbers = allNumbers.filter(n => n.country === country && n.isValid);
-    const availableNumbers = countryNumbers.filter(n => n.usageCount < threshold);
+    const validAvailableNumbers = allNumbers.filter(
+      n => n.country === country && n.isValid && n.isAvailable
+    );
     
-    if (availableNumbers.length < minPerCountry) {
-      const needed = minPerCountry - availableNumbers.length;
-      console.log(`Need to purchase ${needed} numbers for ${country}`);
+    if (validAvailableNumbers.length < minPerCountry) {
+      const needed = minPerCountry - validAvailableNumbers.length;
+      console.log(`Need to purchase ${needed} numbers for ${country} (current: ${validAvailableNumbers.length})`);
       
       const countryCode = country === "france" ? "FR" : "US";
       const available = await searchAvailableNumbers(countryCode, needed);
@@ -94,7 +100,7 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           await sendNewNumberNotification({
             phoneNumber: purchased.phoneNumber,
             country,
-            reason: `Nombre de numéros disponibles insuffisant (${availableNumbers.length}/${minPerCountry})`,
+            reason: `Nombre de numéros disponibles insuffisant (${validAvailableNumbers.length}/${minPerCountry})`,
           });
         }
       }

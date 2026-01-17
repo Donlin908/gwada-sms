@@ -56,6 +56,7 @@ export interface IStorage {
   
   createAlert(phoneNumberId: string, alertType: string, usageCount: number): Promise<NumberAlert>;
   getUnsentAlerts(): Promise<NumberAlert[]>;
+  getAllAlerts(): Promise<NumberAlert[]>;
   markAlertSent(alertId: string): Promise<void>;
 }
 
@@ -243,6 +244,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUnsentAlerts(): Promise<NumberAlert[]> {
     return db.select().from(numberAlerts).where(eq(numberAlerts.emailSent, false));
+  }
+
+  async getAllAlerts(): Promise<NumberAlert[]> {
+    return db.select().from(numberAlerts);
   }
 
   async markAlertSent(alertId: string): Promise<void> {

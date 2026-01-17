@@ -131,3 +131,32 @@ To use real phone numbers instead of demo data:
 - Reservations expire automatically
 - Usage history prevents the same user from using the same number twice
 - Numbers become available again after reservation expires
+
+### Number Monitoring & Auto-Purchase System
+The system includes automatic monitoring for phone number usage:
+
+**Monitoring Features:**
+- Tracks usage count for each phone number
+- Sends email alerts when numbers reach configurable threshold (default: 100 uses)
+- Automatic purchase of new numbers when available count drops below minimum
+- Runs every 5 minutes in the background
+
+**Admin Dashboard (/admin):**
+- View statistics: total numbers, per country, numbers at limit
+- Configure settings: usage alert threshold, auto-purchase toggle, minimum per country
+- Manual purchase buttons for France and USA numbers
+- Full list of all numbers with usage statistics
+
+**Required Environment Variables for Email Notifications:**
+- `ADMIN_EMAIL` - Email address to receive alerts
+- `SMTP_HOST` - SMTP server hostname
+- `SMTP_PORT` - SMTP server port (default: 587)
+- `SMTP_USER` - SMTP username
+- `SMTP_PASS` - SMTP password
+
+**Admin API Endpoints:**
+- `GET /api/admin/stats` - Get monitoring statistics and settings
+- `POST /api/admin/settings` - Update monitoring settings
+- `POST /api/admin/run-monitoring` - Manually trigger monitoring cycle
+- `GET /api/admin/numbers` - Get all numbers with usage counts
+- `POST /api/admin/purchase-number` - Manually purchase a new number
