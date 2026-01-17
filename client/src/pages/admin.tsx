@@ -19,7 +19,9 @@ import {
   XCircle,
   BarChart3,
   Lock,
-  LogOut
+  LogOut,
+  TrendingUp,
+  DollarSign
 } from "lucide-react";
 
 interface AdminStats {
@@ -27,6 +29,7 @@ interface AdminStats {
   franceNumbers: number;
   usaNumbers: number;
   numbersAtLimit: number;
+  totalUsage: number;
   alertsSent: number;
   numbersPurchased: number;
   settings: {
@@ -93,6 +96,151 @@ function ServiceStatus({ name, configured }: { name: string; configured: boolean
         </Badge>
       )}
     </div>
+  );
+}
+
+const COST_PER_NUMBER = 1.05;
+const MONTHLY_COST = 1.05;
+
+const PRICING_PLANS = [
+  { name: "Basique", price: 2, duration: "24h" },
+  { name: "Standard", price: 5, duration: "7 jours" },
+  { name: "Premium", price: 9, duration: "30 jours" },
+];
+
+function ProfitabilityTable({ 
+  totalNumbers, 
+  totalUsage, 
+  usageThreshold 
+}: { 
+  totalNumbers: number; 
+  totalUsage: number;
+  usageThreshold: number;
+}) {
+  const monthlyCostPerNumber = COST_PER_NUMBER + MONTHLY_COST;
+  const totalMonthlyCost = totalNumbers * monthlyCostPerNumber;
+  
+  const calculateProfit = (pricePerUse: number, uses: number) => {
+    return (pricePerUse * uses) - monthlyCostPerNumber;
+  };
+  
+  const calculateROI = (revenue: number, cost: number) => {
+    if (cost === 0) return 0;
+    return ((revenue - cost) / cost) * 100;
+  };
+
+  return (
+    <Card data-testid="card-profitability">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5" />
+          Tableau de rentabilité
+        </CardTitle>
+        <CardDescription>
+          Analyse financière basée sur le coût Twilio de {COST_PER_NUMBER}€ + {MONTHLY_COST}€/mois par numéro
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="p-4 rounded-lg border bg-muted/50">
+            <div className="text-sm text-muted-foreground">Coût mensuel total</div>
+            <div className="text-2xl font-bold text-destructive">
+              {totalMonthlyCost.toFixed(2)} €
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {totalNumbers} numéros × {monthlyCostPerNumber.toFixed(2)}€
+            </div>
+          </div>
+          <div className="p-4 rounded-lg border bg-muted/50">
+            <div className="text-sm text-muted-foreground">Utilisations totales</div>
+            <div className="text-2xl font-bold">{totalUsage}</div>
+            <div className="text-xs text-muted-foreground">
+              Moyenne: {totalNumbers > 0 ? (totalUsage / totalNumbers).toFixed(1) : 0} par numéro
+            </div>
+          </div>
+          <div className="p-4 rounded-lg border bg-muted/50">
+            <div className="text-sm text-muted-foreground">Seuil de remplacement</div>
+            <div className="text-2xl font-bold">{usageThreshold}</div>
+            <div className="text-xs text-muted-foreground">
+              utilisations par numéro
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="font-semibold mb-3 flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Rentabilité par formule (sur {usageThreshold} utilisations)
+          </h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3">Formule</th>
+                  <th className="text-right py-2 px-3">Prix</th>
+                  <th className="text-right py-2 px-3">Revenu potentiel</th>
+                  <th className="text-right py-2 px-3">Coût</th>
+                  <th className="text-right py-2 px-3">Profit net</th>
+                  <th className="text-right py-2 px-3">Marge</th>
+                  <th className="text-right py-2 px-3">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PRICING_PLANS.map((plan) => {
+                  const revenue = plan.price * usageThreshold;
+                  const profit = revenue - monthlyCostPerNumber;
+                  const margin = (profit / revenue) * 100;
+                  const roi = calculateROI(revenue, monthlyCostPerNumber);
+                  
+                  return (
+                    <tr key={plan.name} className="border-b hover-elevate">
+                      <td className="py-3 px-3">
+                        <div className="font-medium">{plan.name}</div>
+                        <div className="text-xs text-muted-foreground">{plan.duration}</div>
+                      </td>
+                      <td className="text-right py-3 px-3 font-mono">{plan.price} €</td>
+                      <td className="text-right py-3 px-3 font-mono font-medium">
+                        {revenue.toFixed(0)} €
+                      </td>
+                      <td className="text-right py-3 px-3 font-mono text-destructive">
+                        {monthlyCostPerNumber.toFixed(2)} €
+                      </td>
+                      <td className="text-right py-3 px-3 font-mono font-bold text-green-600 dark:text-green-400">
+                        {profit.toFixed(2)} €
+                      </td>
+                      <td className="text-right py-3 px-3">
+                        <Badge variant="default">{margin.toFixed(1)}%</Badge>
+                      </td>
+                      <td className="text-right py-3 px-3">
+                        <Badge variant="secondary">{roi.toFixed(0)}%</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-lg border bg-green-50 dark:bg-green-950/20">
+          <h4 className="font-semibold mb-2 text-green-700 dark:text-green-400">Seuil de rentabilité</h4>
+          <div className="grid gap-2 md:grid-cols-3 text-sm">
+            {PRICING_PLANS.map((plan) => {
+              const breakEven = Math.ceil(monthlyCostPerNumber / plan.price);
+              return (
+                <div key={plan.name} className="flex justify-between">
+                  <span>{plan.name} ({plan.price}€)</span>
+                  <span className="font-mono font-medium">{breakEven} utilisation{breakEven > 1 ? 's' : ''}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Nombre minimum d'utilisations pour couvrir le coût mensuel d'un numéro
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -421,6 +569,12 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       </div>
+      
+      <ProfitabilityTable 
+        totalNumbers={stats?.totalNumbers ?? 0}
+        totalUsage={stats?.totalUsage ?? 0}
+        usageThreshold={stats?.settings.usageAlertThreshold ?? 100}
+      />
       
       <Card>
         <CardHeader>

@@ -12,6 +12,7 @@ export interface MonitoringStats {
   franceNumbers: number;
   usaNumbers: number;
   numbersAtLimit: number;
+  totalUsage: number;
   alertsSent: number;
   numbersPurchased: number;
 }
@@ -114,11 +115,14 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
   const allNumbers = await storage.getAllPhoneNumbers();
   const threshold = parseInt(await storage.getSetting("usage_alert_threshold") || String(USAGE_ALERT_THRESHOLD));
   
+  const totalUsage = allNumbers.reduce((sum, n) => sum + n.usageCount, 0);
+  
   return {
     totalNumbers: allNumbers.length,
     franceNumbers: allNumbers.filter(n => n.country === "france").length,
     usaNumbers: allNumbers.filter(n => n.country === "usa").length,
     numbersAtLimit: allNumbers.filter(n => n.usageCount >= threshold).length,
+    totalUsage,
     alertsSent: 0,
     numbersPurchased: 0,
   };
