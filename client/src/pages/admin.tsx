@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  BarChart3
+  BarChart3,
+  Lock,
+  LogOut
 } from "lucide-react";
 
 interface AdminStats {
@@ -94,20 +96,91 @@ function ServiceStatus({ name, configured }: { name: string; configured: boolean
   );
 }
 
+function LoginForm({ onLogin }: { onLogin: () => void }) {
+  const { toast } = useToast();
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      const response = await apiRequest("POST", "/api/admin/login", { password });
+      if (response.ok) {
+        sessionStorage.setItem("adminAuth", "true");
+        onLogin();
+        toast({ title: "Connexion réussie" });
+      }
+    } catch (error) {
+      toast({ title: "Mot de passe incorrect", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+            <Lock className="w-6 h-6 text-primary" />
+          </div>
+          <CardTitle>Administration</CardTitle>
+          <CardDescription>Entrez le code d'accès pour continuer</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">Code d'accès</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Entrez le code..."
+                data-testid="input-admin-password"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading || !password}
+              data-testid="button-admin-login"
+            >
+              {isLoading ? "Connexion..." : "Se connecter"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem("adminAuth") === "true";
+  });
   
   const [usageThreshold, setUsageThreshold] = useState(100);
   const [autoPurchaseEnabled, setAutoPurchaseEnabled] = useState(false);
   const [minPerCountry, setMinPerCountry] = useState(3);
   
+  const handleLogout = () => {
+    sessionStorage.removeItem("adminAuth");
+    setIsAuthenticated(false);
+  };
+  
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: 30000,
+    enabled: isAuthenticated,
   });
   
   const { data: numbers, isLoading: numbersLoading } = useQuery<AdminNumber[]>({
     queryKey: ["/api/admin/numbers"],
+    enabled: isAuthenticated,
   });
   
   useEffect(() => {
@@ -160,6 +233,10 @@ export default function AdminPage() {
     },
   });
   
+  if (!isAuthenticated) {
+    return <LoginForm onLogin={() => setIsAuthenticated(true)} />;
+  }
+  
   if (statsLoading) {
     return (
       <div className="container mx-auto p-6 space-y-6">
@@ -182,16 +259,26 @@ export default function AdminPage() {
   
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-3xl font-bold" data-testid="text-admin-title">Tableau de bord Admin</h1>
-        <Button 
-          onClick={() => runMonitoringMutation.mutate()}
-          disabled={runMonitoringMutation.isPending}
-          data-testid="button-run-monitoring"
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${runMonitoringMutation.isPending ? 'animate-spin' : ''}`} />
-          Vérifier maintenant
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={() => runMonitoringMutation.mutate()}
+            disabled={runMonitoringMutation.isPending}
+            data-testid="button-run-monitoring"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${runMonitoringMutation.isPending ? 'animate-spin' : ''}`} />
+            Vérifier maintenant
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={handleLogout}
+            data-testid="button-admin-logout"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Déconnexion
+          </Button>
+        </div>
       </div>
       
       <div className="grid gap-4 md:grid-cols-4">

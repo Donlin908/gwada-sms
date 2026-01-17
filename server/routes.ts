@@ -18,6 +18,10 @@ const purchaseNumberSchema = z.object({
   country: z.enum(["france", "usa"]),
 });
 
+const adminLoginSchema = z.object({
+  password: z.string().min(1),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -267,6 +271,31 @@ export async function registerRoutes(
         numbersAvailable: 0,
         message: "Error connecting to Twilio",
       });
+    }
+  });
+
+  app.post("/api/admin/login", async (req, res) => {
+    try {
+      const parseResult = adminLoginSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Mot de passe requis" });
+      }
+      
+      const { password } = parseResult.data;
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      
+      if (!adminPassword) {
+        return res.status(503).json({ error: "Mot de passe admin non configuré" });
+      }
+      
+      if (password === adminPassword) {
+        res.json({ success: true, message: "Connexion réussie" });
+      } else {
+        res.status(401).json({ error: "Mot de passe incorrect" });
+      }
+    } catch (error) {
+      console.error("Error during admin login:", error);
+      res.status(500).json({ error: "Erreur de connexion" });
     }
   });
 
