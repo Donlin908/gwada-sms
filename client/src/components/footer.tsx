@@ -11,7 +11,7 @@ export function Footer() {
               <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
                 <MessageSquare className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-semibold">NuméroSMS</span>
+              <span className="text-xl font-semibold">GWADA SMS</span>
             </Link>
             <p className="max-w-md text-sm text-muted-foreground">
               Service de numéros virtuels pour recevoir vos SMS de vérification en France et aux États-Unis. 
@@ -60,7 +60,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 border-t pt-6 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} NuméroSMS. Tous droits réservés.</p>
+          <p>© {new Date().getFullYear()} GWADA SMS. Tous droits réservés.</p>
         </div>
       </div>
     </footer>

@@ -1,8 +1,8 @@
-# NuméroSMS - Virtual SMS Number Service
+# GWADA SMS - Virtual SMS Number Service
 
 ## Overview
 
-NuméroSMS is a virtual phone number service that allows users to receive SMS verification codes using French or American phone numbers. The application provides temporary virtual numbers for receiving SMS messages without requiring users to respond - ideal for account verification purposes.
+GWADA SMS is a virtual phone number service that allows users to receive SMS verification codes using French or American phone numbers. The application provides temporary virtual numbers for receiving SMS messages without requiring users to respond - ideal for account verification purposes.
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 

@@ -177,7 +177,7 @@ export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: st
   try {
     const purchased = await client.incomingPhoneNumbers.create({
       phoneNumber,
-      friendlyName: friendlyName || `NumeroSMS-${new Date().toISOString().split('T')[0]}`,
+      friendlyName: friendlyName || `GwadaSMS-${new Date().toISOString().split('T')[0]}`,
     });
 
     return {

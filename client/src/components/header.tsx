@@ -13,7 +13,7 @@ export function Header() {
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
             <MessageSquare className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-semibold" data-testid="text-logo">NuméroSMS</span>
+          <span className="text-xl font-semibold" data-testid="text-logo">GWADA SMS</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">

@@ -43,7 +43,7 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
     await transporter.sendMail({
       from: SMTP_USER,
       to: ADMIN_EMAIL,
-      subject: `⚠️ NuméroSMS - Numéro ${data.phoneNumber} a atteint ${data.usageCount} utilisations`,
+      subject: `⚠️ GWADA SMS - Numéro ${data.phoneNumber} a atteint ${data.usageCount} utilisations`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #ef4444;">Alerte d'utilisation de numéro</h1>
@@ -65,7 +65,7 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
           </ul>
           
           <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Cet email a été envoyé automatiquement par NuméroSMS.
+            Cet email a été envoyé automatiquement par GWADA SMS.
           </p>
         </div>
       `,
@@ -97,7 +97,7 @@ export async function sendNewNumberNotification(data: NewNumberPurchasedData): P
     await transporter.sendMail({
       from: SMTP_USER,
       to: ADMIN_EMAIL,
-      subject: `✅ NuméroSMS - Nouveau numéro acheté: ${data.phoneNumber}`,
+      subject: `✅ GWADA SMS - Nouveau numéro acheté: ${data.phoneNumber}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #22c55e;">Nouveau numéro acheté automatiquement</h1>
@@ -111,7 +111,7 @@ export async function sendNewNumberNotification(data: NewNumberPurchasedData): P
           <p><strong>Raison :</strong> ${data.reason}</p>
           
           <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Cet email a été envoyé automatiquement par NuméroSMS.
+            Cet email a été envoyé automatiquement par GWADA SMS.
           </p>
         </div>
       `,
