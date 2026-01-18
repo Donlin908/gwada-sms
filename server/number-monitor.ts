@@ -150,7 +150,10 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
     
     const dbNumbers = await storage.getAllPhoneNumbers();
     for (const dbNum of dbNumbers) {
-      if (dbNum.twilioSid && !twilioSids.has(dbNum.twilioSid)) {
+      // Only invalidate numbers with real Twilio SIDs (starting with "PN")
+      // Demo/test numbers have fake SIDs that don't start with "PN"
+      const hasRealTwilioSid = dbNum.twilioSid && dbNum.twilioSid.startsWith("PN");
+      if (hasRealTwilioSid && !twilioSids.has(dbNum.twilioSid)) {
         await storage.updatePhoneNumber(dbNum.id, { 
           isValid: false, 
           isAvailable: false 

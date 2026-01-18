@@ -60,7 +60,7 @@ export function NumberCard({ phoneNumber }: NumberCardProps) {
               </>
             )}
           </Button>
-          <Link href={`/payment?phone_id=${phoneNumber.id}`} className="flex-1">
+          <Link href={`/payment/${phoneNumber.id}`} className="flex-1">
             <Button size="sm" className="w-full gap-2" data-testid={`button-reserve-${phoneNumber.id}`}>
               <CreditCard className="h-4 w-4" />
               Réserver

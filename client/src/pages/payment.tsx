@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useState } from "react";
+import { Link, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Check, Clock, Loader2, CreditCard, Shield, ArrowLeft } from "lucide-react";
 import { Header } from "@/components/header";
@@ -34,10 +34,9 @@ interface StripeProduct {
 }
 
 export default function Payment() {
-  const [location] = useLocation();
+  const [, params] = useRoute("/payment/:numberId");
   const { toast } = useToast();
-  const searchParams = new URLSearchParams(location.split("?")[1] || "");
-  const phoneId = searchParams.get("phone_id");
+  const phoneId = params?.numberId || null;
 
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
 
