@@ -33,6 +33,9 @@ interface AdminStats {
   totalUsage: number;
   alertsSent: number;
   numbersPurchased: number;
+  numbersSynced: number;
+  numbersInvalidated: number;
+  lastSyncAt: string | null;
   settings: {
     usageAlertThreshold: number;
     autoPurchaseEnabled: boolean;
@@ -428,8 +431,19 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
     },
+  });
+  
+  const syncTwilioMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/sync-twilio");
+    },
+    onSuccess: (response) => {
+      toast({ title: "Synchronisation terminée" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
+    },
     onError: () => {
-      toast({ title: "Erreur lors de l'achat", variant: "destructive" });
+      toast({ title: "Erreur lors de la synchronisation", variant: "destructive" });
     },
   });
   
@@ -615,6 +629,28 @@ export default function AdminPage() {
               {!stats?.services.twilioConfigured && (
                 <p className="text-xs text-muted-foreground">
                   Configurez Twilio pour acheter des numéros
+                </p>
+              )}
+            </div>
+            
+            <div className="pt-4 space-y-2 border-t">
+              <Label>Synchronisation Twilio</Label>
+              <p className="text-xs text-muted-foreground">
+                Les numéros achetés sur Twilio sont synchronisés automatiquement toutes les 5 minutes
+              </p>
+              <Button 
+                variant="outline"
+                onClick={() => syncTwilioMutation.mutate()}
+                disabled={syncTwilioMutation.isPending || !stats?.services.twilioConfigured}
+                className="w-full"
+                data-testid="button-sync-twilio"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncTwilioMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncTwilioMutation.isPending ? 'Synchronisation...' : 'Synchroniser maintenant'}
+              </Button>
+              {stats?.lastSyncAt && (
+                <p className="text-xs text-muted-foreground">
+                  Dernière sync : {new Date(stats.lastSyncAt).toLocaleString('fr-FR')}
                 </p>
               )}
             </div>

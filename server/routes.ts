@@ -437,6 +437,25 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/sync-twilio", async (req, res) => {
+    try {
+      if (!twilioService.isConfigured()) {
+        return res.status(503).json({ error: "Twilio is not configured" });
+      }
+      
+      const result = await numberMonitor.syncTwilioNumbers();
+      
+      res.json({
+        message: "Sync completed",
+        synced: result.synced,
+        invalidated: result.invalidated,
+      });
+    } catch (error) {
+      console.error("Error syncing Twilio numbers:", error);
+      res.status(500).json({ error: "Failed to sync numbers" });
+    }
+  });
+
   numberMonitor.startMonitoring(5 * 60 * 1000);
 
   return httpServer;

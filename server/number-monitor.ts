@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 import { sendUsageAlert, sendNewNumberNotification, isEmailConfigured } from "./email-service";
-import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured } from "./twilio-service";
+import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber } from "./twilio-service";
 import type { Country } from "@shared/schema";
 
 const USAGE_ALERT_THRESHOLD = 100;
@@ -15,6 +15,9 @@ export interface MonitoringStats {
   totalUsage: number;
   alertsSent: number;
   numbersPurchased: number;
+  numbersSynced: number;
+  numbersInvalidated: number;
+  lastSyncAt: string | null;
 }
 
 export async function checkAndAlertHighUsage(): Promise<number> {
@@ -111,9 +114,94 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
   return purchasedNumbers;
 }
 
+export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated: number }> {
+  if (!isTwilioConfigured()) {
+    console.log("Twilio not configured, skipping sync");
+    return { synced: 0, invalidated: 0 };
+  }
+
+  let synced = 0;
+  let invalidated = 0;
+
+  try {
+    const twilioNumbers = await getAllTwilioNumbers();
+    const twilioSids = new Set(twilioNumbers.map(n => n.sid));
+    
+    for (const twilioNum of twilioNumbers) {
+      const existing = await storage.getPhoneNumberByTwilioSid(twilioNum.sid);
+      if (!existing) {
+        let country: "france" | "usa" = "usa";
+        if (twilioNum.phoneNumber.startsWith("+33")) {
+          country = "france";
+        }
+        
+        await storage.createPhoneNumber({
+          twilioSid: twilioNum.sid,
+          number: twilioNum.phoneNumber,
+          country,
+          isAvailable: true,
+          isValid: twilioNum.capabilities.sms,
+          lastValidatedAt: new Date(),
+        });
+        synced++;
+        console.log(`Synced new number: ${twilioNum.phoneNumber}`);
+      }
+    }
+    
+    const dbNumbers = await storage.getAllPhoneNumbers();
+    for (const dbNum of dbNumbers) {
+      if (dbNum.twilioSid && !twilioSids.has(dbNum.twilioSid)) {
+        await storage.updatePhoneNumber(dbNum.id, { 
+          isValid: false, 
+          isAvailable: false 
+        });
+        invalidated++;
+        console.log(`Invalidated number no longer on Twilio: ${dbNum.number}`);
+      }
+    }
+    
+    await storage.setSetting("last_twilio_sync", new Date().toISOString());
+    
+  } catch (error) {
+    console.error("Error syncing Twilio numbers:", error);
+  }
+
+  return { synced, invalidated };
+}
+
+export async function validateExistingNumbers(): Promise<number> {
+  if (!isTwilioConfigured()) {
+    return 0;
+  }
+
+  let invalidated = 0;
+  const allNumbers = await storage.getAllPhoneNumbers();
+  
+  for (const num of allNumbers) {
+    if (num.twilioSid && num.isValid) {
+      const isStillValid = await validatePhoneNumber(num.twilioSid);
+      if (!isStillValid) {
+        await storage.updatePhoneNumber(num.id, { 
+          isValid: false, 
+          isAvailable: false 
+        });
+        invalidated++;
+        console.log(`Number ${num.number} is no longer valid on Twilio`);
+      } else {
+        await storage.updatePhoneNumber(num.id, { 
+          lastValidatedAt: new Date() 
+        });
+      }
+    }
+  }
+
+  return invalidated;
+}
+
 export async function getMonitoringStats(): Promise<MonitoringStats> {
   const allNumbers = await storage.getAllPhoneNumbers();
   const threshold = parseInt(await storage.getSetting("usage_alert_threshold") || String(USAGE_ALERT_THRESHOLD));
+  const lastSyncAt = await storage.getSetting("last_twilio_sync");
   
   const totalUsage = allNumbers.reduce((sum, n) => sum + n.usageCount, 0);
   
@@ -125,18 +213,24 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
     totalUsage,
     alertsSent: 0,
     numbersPurchased: 0,
+    numbersSynced: 0,
+    numbersInvalidated: 0,
+    lastSyncAt: lastSyncAt || null,
   };
 }
 
 export async function runMonitoringCycle(): Promise<MonitoringStats> {
   console.log("Running monitoring cycle...");
   
+  const syncResult = await syncTwilioNumbers();
   const alertsSent = await checkAndAlertHighUsage();
   const purchased = await checkAndAutoPurchase();
   
   const stats = await getMonitoringStats();
   stats.alertsSent = alertsSent;
   stats.numbersPurchased = purchased.length;
+  stats.numbersSynced = syncResult.synced;
+  stats.numbersInvalidated = syncResult.invalidated;
   
   console.log("Monitoring cycle complete:", stats);
   return stats;
