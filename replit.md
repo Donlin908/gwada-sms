@@ -123,8 +123,9 @@ shared/           # Shared types and schemas
 To use real phone numbers instead of demo data:
 1. Log into your Twilio console (console.twilio.com)
 2. Purchase phone numbers (France: +33, USA: +1)
-3. Call `POST /api/sync-twilio-numbers` to sync them to the database
-4. The numbers will automatically appear in the application
+3. Numbers are **automatically synchronized** every 5 minutes
+4. Or use the "Synchroniser maintenant" button in the admin dashboard for immediate sync
+5. Numbers no longer on Twilio are automatically marked as invalid
 
 ### Reservation System
 - Users can reserve numbers for 24h, 7 days, or 30 days
@@ -155,8 +156,40 @@ The system includes automatic monitoring for phone number usage:
 - `SMTP_PASS` - SMTP password
 
 **Admin API Endpoints:**
-- `GET /api/admin/stats` - Get monitoring statistics and settings
+- `GET /api/admin/stats` - Get monitoring statistics, settings, and last sync timestamp
 - `POST /api/admin/settings` - Update monitoring settings
 - `POST /api/admin/run-monitoring` - Manually trigger monitoring cycle
 - `GET /api/admin/numbers` - Get all numbers with usage counts
 - `POST /api/admin/purchase-number` - Manually purchase a new number
+- `POST /api/admin/sync-twilio` - Force immediate sync with Twilio
+
+### Auto-Sync System
+The application automatically synchronizes phone numbers from Twilio:
+
+**How it works:**
+- Every 5 minutes, the monitoring cycle syncs numbers from Twilio
+- New numbers purchased on Twilio are automatically imported
+- Numbers deleted from Twilio are automatically marked as invalid
+- Last sync timestamp is displayed in the admin dashboard
+
+**Manual Sync:**
+- Click "Synchroniser maintenant" in the admin dashboard
+- Or call `POST /api/admin/sync-twilio`
+
+### Profitability Analysis
+The admin dashboard includes a profitability table showing:
+
+**Per-Number Metrics:**
+- Cost per number: 1.05€ initial + 1.05€/month = 2.10€ total monthly cost
+- Revenue potential for each pricing plan (Basique 2€, Standard 5€, Premium 9€)
+- Profit margins (>99% for all plans)
+- ROI calculations
+
+**Per-User Metrics:**
+- Cost per user based on usage threshold
+- Profit per user for each plan
+- Cost as percentage of price
+
+**Break-Even Analysis:**
+- Minimum uses needed per plan to cover costs
+- Basique: 2 uses, Standard: 1 use, Premium: 1 use
