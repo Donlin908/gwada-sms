@@ -22,7 +22,12 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl" data-testid="text-hero-description">
-            Obtenez un numéro français ou américain pour recevoir vos codes de vérification. 
+            Numéros français et américains disponibles pour recevoir vos codes de vérification.
+            <br />
+            <span className="font-medium">Service accessible depuis la Guadeloupe et les DOM.</span>
+            <br />
+            Réception uniquement — aucun envoi possible.
+            <br />
             Sans inscription, sans engagement.
           </p>
 
