@@ -43,6 +43,13 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/sync-twilio-numbers` - Sync numbers from Twilio
 - `GET /api/twilio/status` - Check Twilio configuration status
 
+**Stripe Payment Endpoints:**
+- `GET /api/stripe/publishable-key` - Get Stripe publishable key
+- `GET /api/stripe/products` - List products with prices from Stripe
+- `POST /api/stripe/create-checkout-session` - Create Stripe checkout session
+- `POST /api/stripe/confirm-payment` - Confirm payment and create reservation
+- `POST /api/stripe/webhook` - Stripe webhook handler (auto-managed)
+
 ### Data Storage
 - **ORM:** Drizzle ORM with PostgreSQL dialect (Neon serverless)
 - **Schema Location:** `shared/schema.ts`
