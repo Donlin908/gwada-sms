@@ -6,6 +6,9 @@ import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { isEmailConfigured } from "./email-service";
 import { z } from "zod";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
 
 const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
@@ -457,6 +460,179 @@ export async function registerRoutes(
   });
 
   numberMonitor.startMonitoring(5 * 60 * 1000);
+
+  app.get("/api/stripe/publishable-key", async (req, res) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error) {
+      console.error("Error getting Stripe publishable key:", error);
+      res.status(500).json({ error: "Stripe not configured" });
+    }
+  });
+
+  app.get("/api/stripe/products", async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          p.id as product_id,
+          p.name as product_name,
+          p.description as product_description,
+          p.metadata as product_metadata,
+          pr.id as price_id,
+          pr.unit_amount,
+          pr.currency
+        FROM stripe.products p
+        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.active = true
+        ORDER BY pr.unit_amount ASC
+      `);
+      
+      const productsMap = new Map();
+      for (const row of result.rows as any[]) {
+        if (!productsMap.has(row.product_id)) {
+          productsMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.product_name,
+            description: row.product_description,
+            metadata: row.product_metadata,
+            prices: []
+          });
+        }
+        if (row.price_id) {
+          productsMap.get(row.product_id).prices.push({
+            id: row.price_id,
+            unit_amount: row.unit_amount,
+            currency: row.currency,
+          });
+        }
+      }
+
+      res.json({ products: Array.from(productsMap.values()) });
+    } catch (error) {
+      console.error("Error fetching Stripe products:", error);
+      res.json({ products: [] });
+    }
+  });
+
+  const checkoutSchema = z.object({
+    priceId: z.string(),
+    phoneNumberId: z.string(),
+    planId: z.string(),
+    sessionId: z.string(),
+  });
+
+  app.post("/api/stripe/create-checkout-session", async (req, res) => {
+    try {
+      const parseResult = checkoutSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
+
+      const { priceId, phoneNumberId, planId, sessionId } = parseResult.data;
+
+      const phoneNumber = await storage.getPhoneNumber(phoneNumberId);
+      if (!phoneNumber) {
+        return res.status(404).json({ error: "Phone number not found" });
+      }
+
+      const existingReservation = await storage.getActiveReservation(phoneNumberId);
+      if (existingReservation) {
+        return res.status(409).json({ error: "Ce numéro est déjà réservé" });
+      }
+
+      const hasUsed = await storage.hasBeenUsedBySession(phoneNumberId, sessionId);
+      if (hasUsed) {
+        return res.status(409).json({ error: "Vous avez déjà utilisé ce numéro" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: 'payment',
+        success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&phone_id=${phoneNumberId}&plan_id=${planId}&user_session=${sessionId}`,
+        cancel_url: `${baseUrl}/payment/cancel?phone_id=${phoneNumberId}`,
+        metadata: {
+          phoneNumberId,
+          planId,
+          userSessionId: sessionId,
+        },
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/stripe/confirm-payment", async (req, res) => {
+    try {
+      const { sessionId, phoneNumberId, planId, userSessionId } = req.body;
+
+      if (!sessionId || !phoneNumberId || !planId || !userSessionId) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (checkoutSession.payment_status !== 'paid') {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      const existingReservation = await storage.getActiveReservation(phoneNumberId);
+      if (existingReservation) {
+        return res.json({ 
+          success: true, 
+          reservation: existingReservation,
+          message: "Réservation déjà active"
+        });
+      }
+
+      const plan = pricingPlans.find(p => p.id === planId);
+      if (!plan) {
+        return res.status(400).json({ error: "Invalid plan" });
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+
+      const reservation = await storage.createReservation({
+        phoneNumberId,
+        planId,
+        sessionId: userSessionId,
+        startsAt: now,
+        expiresAt,
+        isActive: true,
+      });
+
+      await storage.recordUsage({
+        phoneNumberId,
+        sessionId: userSessionId,
+        usedAt: now,
+        purpose: `Paid reservation with ${plan.name} plan`,
+      });
+
+      res.json({
+        success: true,
+        reservation: {
+          id: reservation.id,
+          phoneNumberId: reservation.phoneNumberId,
+          planId: reservation.planId,
+          startsAt: reservation.startsAt.toISOString(),
+          expiresAt: reservation.expiresAt.toISOString(),
+        },
+        message: `Numéro réservé jusqu'au ${expiresAt.toLocaleString('fr-FR')}`,
+      });
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      res.status(500).json({ error: "Failed to confirm payment" });
+    }
+  });
 
   return httpServer;
 }

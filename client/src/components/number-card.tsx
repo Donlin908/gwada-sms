@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Check, Copy, Eye } from "lucide-react";
+import { Check, Copy, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,10 +60,10 @@ export function NumberCard({ phoneNumber }: NumberCardProps) {
               </>
             )}
           </Button>
-          <Link href={`/messages/${phoneNumber.id}`} className="flex-1">
-            <Button size="sm" className="w-full gap-2" data-testid={`button-view-sms-${phoneNumber.id}`}>
-              <Eye className="h-4 w-4" />
-              Voir SMS
+          <Link href={`/payment?phone_id=${phoneNumber.id}`} className="flex-1">
+            <Button size="sm" className="w-full gap-2" data-testid={`button-reserve-${phoneNumber.id}`}>
+              <CreditCard className="h-4 w-4" />
+              Réserver
             </Button>
           </Link>
         </div>

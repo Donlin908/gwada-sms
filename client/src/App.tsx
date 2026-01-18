@@ -7,6 +7,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Home from "@/pages/home";
 import Numbers from "@/pages/numbers";
 import Messages from "@/pages/messages";
+import Payment from "@/pages/payment";
+import PaymentSuccess from "@/pages/payment-success";
+import PaymentCancel from "@/pages/payment-cancel";
 import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
@@ -16,6 +19,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/numbers" component={Numbers} />
       <Route path="/messages/:id" component={Messages} />
+      <Route path="/payment" component={Payment} />
+      <Route path="/payment/success" component={PaymentSuccess} />
+      <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
