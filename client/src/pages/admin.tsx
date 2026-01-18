@@ -21,7 +21,8 @@ import {
   Lock,
   LogOut,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  Users
 } from "lucide-react";
 
 interface AdminStats {
@@ -220,6 +221,57 @@ function ProfitabilityTable({
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div>
+          <h4 className="font-semibold mb-3 flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Métriques par utilisateur
+          </h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3">Formule</th>
+                  <th className="text-right py-2 px-3">Revenu/user</th>
+                  <th className="text-right py-2 px-3">Coût/user</th>
+                  <th className="text-right py-2 px-3">Profit/user</th>
+                  <th className="text-right py-2 px-3">Coût % du prix</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PRICING_PLANS.map((plan) => {
+                  const costPerUser = monthlyCostPerNumber / usageThreshold;
+                  const profitPerUser = plan.price - costPerUser;
+                  const costPercentage = (costPerUser / plan.price) * 100;
+                  
+                  return (
+                    <tr key={plan.name} className="border-b hover-elevate">
+                      <td className="py-3 px-3">
+                        <div className="font-medium">{plan.name}</div>
+                        <div className="text-xs text-muted-foreground">{plan.duration}</div>
+                      </td>
+                      <td className="text-right py-3 px-3 font-mono">{plan.price.toFixed(2)} €</td>
+                      <td className="text-right py-3 px-3 font-mono text-destructive">
+                        {costPerUser.toFixed(4)} €
+                      </td>
+                      <td className="text-right py-3 px-3 font-mono font-bold text-green-600 dark:text-green-400">
+                        {profitPerUser.toFixed(4)} €
+                      </td>
+                      <td className="text-right py-3 px-3">
+                        <Badge variant={costPercentage < 1 ? "default" : "secondary"}>
+                          {costPercentage.toFixed(2)}%
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Coût par utilisateur = Coût mensuel du numéro ({monthlyCostPerNumber.toFixed(2)}€) ÷ Seuil d'utilisation ({usageThreshold})
+          </p>
         </div>
 
         <div className="p-4 rounded-lg border bg-green-50 dark:bg-green-950/20">
