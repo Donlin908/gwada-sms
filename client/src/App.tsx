@@ -19,7 +19,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/numbers" component={Numbers} />
       <Route path="/messages/:id" component={Messages} />
-      <Route path="/payment" component={Payment} />
+      <Route path="/payment/:numberId" component={Payment} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/admin" component={Admin} />
