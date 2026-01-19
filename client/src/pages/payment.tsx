@@ -199,7 +199,7 @@ export default function Payment() {
                   <div className="mb-6">
                     <span className="text-4xl font-bold" data-testid={`text-plan-price-${plan.id}`}>{plan.price}€</span>
                   </div>
-                  <ul className="space-y-2 text-left text-sm">
+                  <ul className="space-y-2 text-left text-sm mb-6">
                     {plan.features.map((feature, i) => (
                       <li key={i} className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-primary" />
@@ -207,12 +207,24 @@ export default function Payment() {
                       </li>
                     ))}
                   </ul>
-                  {selectedPlan?.id === plan.id && (
-                    <div className="mt-4 flex items-center justify-center gap-2 text-primary">
-                      <Check className="h-5 w-5" />
-                      <span className="font-medium">Sélectionné</span>
-                    </div>
-                  )}
+                  <Button
+                    variant={selectedPlan?.id === plan.id ? "default" : "outline"}
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectPlan(plan);
+                    }}
+                    data-testid={`button-select-${plan.id}`}
+                  >
+                    {selectedPlan?.id === plan.id ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Sélectionné
+                      </>
+                    ) : (
+                      "Choisir ce plan"
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
