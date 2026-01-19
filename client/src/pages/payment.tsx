@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useRoute } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { Link, useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Check, Clock, Loader2, CreditCard, Shield, ArrowLeft } from "lucide-react";
 import { Header } from "@/components/header";
@@ -35,10 +35,21 @@ interface StripeProduct {
 
 export default function Payment() {
   const [, params] = useRoute("/payment/:numberId");
+  const [location] = useLocation();
   const { toast } = useToast();
   const phoneId = params?.numberId || null;
-
-  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  
+  // Read plan from URL query params
+  const searchParams = new URLSearchParams(location.split("?")[1] || "");
+  const preselectedPlanId = searchParams.get("plan");
+  
+  // Find the preselected plan
+  const initialPlan = preselectedPlanId 
+    ? pricingPlans.find(p => p.id === preselectedPlanId) || null
+    : null;
+  
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(initialPlan);
+  const hasAutoTriggered = useRef(false);
 
   const { data: phoneNumber, isLoading: loadingPhone } = useQuery<PhoneNumberResponse>({
     queryKey: ['/api/numbers', phoneId],
@@ -100,6 +111,21 @@ export default function Payment() {
       sessionId: getSessionId(),
     });
   };
+
+  // Auto-trigger checkout when plan is pre-selected and data is loaded
+  useEffect(() => {
+    if (
+      preselectedPlanId &&
+      selectedPlan &&
+      phoneNumber &&
+      stripeProducts &&
+      !hasAutoTriggered.current &&
+      !checkoutMutation.isPending
+    ) {
+      hasAutoTriggered.current = true;
+      handleCheckout();
+    }
+  }, [preselectedPlanId, selectedPlan, phoneNumber, stripeProducts, checkoutMutation.isPending]);
 
   if (!phoneId) {
     return (

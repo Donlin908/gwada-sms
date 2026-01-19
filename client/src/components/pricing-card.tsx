@@ -49,7 +49,7 @@ export function PricingCard({ plan }: PricingCardProps) {
           ))}
         </ul>
 
-        <Link href="/numbers">
+        <Link href={`/numbers?plan=${plan.id}`}>
           <Button
             className="w-full"
             variant={plan.isRecommended ? "default" : "outline"}

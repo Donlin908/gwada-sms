@@ -9,9 +9,10 @@ import { FranceFlag, UsaFlag } from "./flag-icons";
 
 interface NumberCardProps {
   phoneNumber: PhoneNumberResponse;
+  planId?: string;
 }
 
-export function NumberCard({ phoneNumber }: NumberCardProps) {
+export function NumberCard({ phoneNumber, planId }: NumberCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -60,7 +61,7 @@ export function NumberCard({ phoneNumber }: NumberCardProps) {
               </>
             )}
           </Button>
-          <Link href={`/payment/${phoneNumber.id}`} className="flex-1">
+          <Link href={`/payment/${phoneNumber.id}${planId ? `?plan=${planId}` : ''}`} className="flex-1">
             <Button size="sm" className="w-full gap-2" data-testid={`button-reserve-${phoneNumber.id}`}>
               <CreditCard className="h-4 w-4" />
               Réserver

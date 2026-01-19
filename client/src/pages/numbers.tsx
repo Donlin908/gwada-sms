@@ -15,6 +15,7 @@ export default function Numbers() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split("?")[1] || "");
   const initialCountry = (searchParams.get("country") as Country) || "france";
+  const planId = searchParams.get("plan") || "";
   
   const [selectedCountry, setSelectedCountry] = useState<Country>(initialCountry);
 
@@ -69,7 +70,7 @@ export default function Numbers() {
           ) : numbers && numbers.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {numbers.map((phoneNumber) => (
-                <NumberCard key={phoneNumber.id} phoneNumber={phoneNumber} />
+                <NumberCard key={phoneNumber.id} phoneNumber={phoneNumber} planId={planId} />
               ))}
             </div>
           ) : (
