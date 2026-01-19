@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ interface PricingCardProps {
 export function PricingCard({ plan }: PricingCardProps) {
   return (
     <Card
-      className={`relative overflow-hidden ${
+      className={`relative overflow-hidden hover-elevate ${
         plan.isRecommended ? "border-primary shadow-lg" : ""
       }`}
       data-testid={`card-pricing-${plan.id}`}
@@ -48,13 +49,15 @@ export function PricingCard({ plan }: PricingCardProps) {
           ))}
         </ul>
 
-        <Button
-          className="w-full"
-          variant={plan.isRecommended ? "default" : "outline"}
-          data-testid={`button-select-plan-${plan.id}`}
-        >
-          Choisir ce plan
-        </Button>
+        <Link href="/numbers">
+          <Button
+            className="w-full"
+            variant={plan.isRecommended ? "default" : "outline"}
+            data-testid={`button-select-plan-${plan.id}`}
+          >
+            Choisir ce plan
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );
