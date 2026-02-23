@@ -8,6 +8,13 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 ## Recent Changes
 
+- **2026-02-23:** Added Google OAuth login via Replit Auth (OIDC)
+  - Users can sign in with Google alongside email/password
+  - Schema: password/username now optional, added authProvider, firstName, lastName, profileImageUrl
+  - Replit Auth integration adapted to use existing users table (upsert by email)
+  - Google button on login/register pages with "ou" separator
+  - Routes: GET /api/login (OIDC redirect), GET /api/callback, GET /api/logout
+  - Header shows profile image for social users
 - **2026-02-23:** Added email verification on registration
   - Verification token (crypto.randomBytes) with 24h expiry stored in users table
   - Email sent via nodemailer (sendVerificationEmail in email-service.ts)

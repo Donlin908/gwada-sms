@@ -114,7 +114,7 @@ export async function registerRoutes(
       const { email, password } = parseResult.data;
 
       const user = await storage.getUserByEmail(email);
-      if (!user) {
+      if (!user || !user.password) {
         return res.status(401).json({ error: "Email ou mot de passe incorrect" });
       }
 
@@ -157,8 +157,19 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Utilisateur non trouvé" });
       }
 
+      const displayName = user.username || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email.split("@")[0];
+
       res.json({
-        user: { id: user.id, username: user.username, email: user.email, emailVerified: user.emailVerified },
+        user: {
+          id: user.id,
+          username: displayName,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          authProvider: user.authProvider,
+          profileImageUrl: user.profileImageUrl,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
       });
     } catch (error) {
       console.error("Error fetching user:", error);

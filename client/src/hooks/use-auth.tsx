@@ -7,6 +7,10 @@ interface AuthUser {
   username: string;
   email: string;
   emailVerified: boolean;
+  authProvider?: string;
+  profileImageUrl?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 }
 
 interface RegisterResult {
@@ -92,7 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [registerMutation]);
 
   const logout = useCallback(async () => {
-    await logoutMutation.mutateAsync();
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      window.location.href = "/";
+    }
   }, [logoutMutation]);
 
   const resendVerification = useCallback(async () => {

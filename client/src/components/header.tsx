@@ -16,7 +16,7 @@ export function Header() {
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
-    await logout();
+    window.location.href = "/api/logout";
   };
 
   return (
@@ -74,7 +74,11 @@ export function Header() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2" data-testid="button-user-menu">
-                  <User className="h-4 w-4" />
+                  {user.profileImageUrl ? (
+                    <img src={user.profileImageUrl} alt="" className="h-5 w-5 rounded-full" />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
                   <span className="hidden sm:inline">{user.username}</span>
                 </Button>
               </DropdownMenuTrigger>
