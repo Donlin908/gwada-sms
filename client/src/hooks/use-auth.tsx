@@ -6,18 +6,25 @@ interface AuthUser {
   id: string;
   username: string;
   email: string;
+  emailVerified: boolean;
+}
+
+interface RegisterResult {
+  requiresVerification?: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<RegisterResult>;
   logout: () => Promise<void>;
+  resendVerification: () => Promise<void>;
   loginError: string | null;
   registerError: string | null;
   isLoginPending: boolean;
   isRegisterPending: boolean;
+  isResendPending: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async ({ username, email, password }: { username: string; email: string; password: string }) => {
       const res = await apiRequest("POST", "/api/auth/register", { username, email, password });
-      return res.json();
+      return res.json() as Promise<{ user: AuthUser; requiresVerification?: boolean }>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -68,17 +75,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const resendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/auth/resend-verification");
+      return res.json();
+    },
+  });
+
   const login = useCallback(async (email: string, password: string) => {
     await loginMutation.mutateAsync({ email, password });
   }, [loginMutation]);
 
-  const register = useCallback(async (username: string, email: string, password: string) => {
-    await registerMutation.mutateAsync({ username, email, password });
+  const register = useCallback(async (username: string, email: string, password: string): Promise<RegisterResult> => {
+    const result = await registerMutation.mutateAsync({ username, email, password });
+    return { requiresVerification: result.requiresVerification };
   }, [registerMutation]);
 
   const logout = useCallback(async () => {
     await logoutMutation.mutateAsync();
   }, [logoutMutation]);
+
+  const resendVerification = useCallback(async () => {
+    await resendMutation.mutateAsync();
+  }, [resendMutation]);
 
   const extractError = (error: any): string | null => {
     if (!error) return null;
@@ -100,10 +119,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        resendVerification,
         loginError: extractError(loginMutation.error),
         registerError: extractError(registerMutation.error),
         isLoginPending: loginMutation.isPending,
         isRegisterPending: registerMutation.isPending,
+        isResendPending: resendMutation.isPending,
       }}
     >
       {children}

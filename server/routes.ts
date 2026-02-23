@@ -4,12 +4,13 @@ import { storage } from "./storage";
 import { type Country, pricingPlans, phoneNumbers } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
-import { isEmailConfigured } from "./email-service";
+import { isEmailConfigured, sendVerificationEmail } from "./email-service";
 import { z } from "zod";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
@@ -63,11 +64,21 @@ export async function registerRoutes(
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
       const user = await storage.createUser({
         username,
         email,
         password: hashedPassword,
       });
+
+      await storage.updateUserVerification(user.id, {
+        verificationToken,
+        verificationExpires,
+      });
+
+      const emailSent = await sendVerificationEmail(email, verificationToken);
 
       req.session.regenerate((err) => {
         if (err) {
@@ -81,7 +92,9 @@ export async function registerRoutes(
             return res.status(500).json({ error: "Erreur serveur" });
           }
           res.json({
-            user: { id: user.id, username: user.username, email: user.email },
+            user: { id: user.id, username: user.username, email: user.email, emailVerified: false },
+            requiresVerification: true,
+            emailSent,
           });
         });
       });
@@ -122,7 +135,7 @@ export async function registerRoutes(
             return res.status(500).json({ error: "Erreur serveur" });
           }
           res.json({
-            user: { id: user.id, username: user.username, email: user.email },
+            user: { id: user.id, username: user.username, email: user.email, emailVerified: user.emailVerified },
           });
         });
       });
@@ -145,10 +158,74 @@ export async function registerRoutes(
       }
 
       res.json({
-        user: { id: user.id, username: user.username, email: user.email },
+        user: { id: user.id, username: user.username, email: user.email, emailVerified: user.emailVerified },
       });
     } catch (error) {
       console.error("Error fetching user:", error);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      if (!token) {
+        return res.status(400).json({ error: "Token manquant" });
+      }
+
+      const user = await storage.getUserByVerificationToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Token invalide ou expiré" });
+      }
+
+      if (user.verificationExpires && user.verificationExpires < new Date()) {
+        return res.status(400).json({ error: "Ce lien a expiré. Demandez un nouveau lien de vérification." });
+      }
+
+      await storage.updateUserVerification(user.id, {
+        emailVerified: true,
+        verificationToken: null,
+        verificationExpires: null,
+      });
+
+      res.json({ message: "Email vérifié avec succès !" });
+    } catch (error) {
+      console.error("Error verifying email:", error);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(404).json({ error: "Utilisateur non trouvé" });
+      }
+
+      if (user.emailVerified) {
+        return res.json({ message: "Email déjà vérifié" });
+      }
+
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await storage.updateUserVerification(user.id, {
+        verificationToken,
+        verificationExpires,
+      });
+
+      const sent = await sendVerificationEmail(user.email, verificationToken);
+      if (!sent) {
+        return res.status(500).json({ error: "Impossible d'envoyer l'email. Vérifiez la configuration SMTP." });
+      }
+
+      res.json({ message: "Email de vérification renvoyé" });
+    } catch (error) {
+      console.error("Error resending verification:", error);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

@@ -7,7 +7,7 @@ import { LoadingSpinner } from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, MessageSquare, Plus } from "lucide-react";
+import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2 } from "lucide-react";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
 
 interface UserReservation {
@@ -22,7 +22,7 @@ interface UserReservation {
 }
 
 export default function Dashboard() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, resendVerification, isResendPending } = useAuth();
   const [, navigate] = useLocation();
 
   const { data: reservations, isLoading: reservationsLoading } = useQuery<UserReservation[]>({
@@ -80,6 +80,26 @@ export default function Dashboard() {
       <Header />
       <main className="flex-1 py-8 md:py-12">
         <div className="container px-4 md:px-6">
+          {user && !user.emailVerified && (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950" data-testid="banner-verify-email">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Votre email n'est pas encore vérifié. Vérifiez votre boîte mail pour activer votre compte.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => resendVerification()}
+                disabled={isResendPending}
+                data-testid="button-dashboard-resend"
+              >
+                {isResendPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Renvoyer"}
+              </Button>
+            </div>
+          )}
+
           <div className="mb-8">
             <h1 className="text-3xl font-bold" data-testid="text-dashboard-title">
               Bonjour, {user.username}

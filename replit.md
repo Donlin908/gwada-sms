@@ -8,6 +8,11 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 ## Recent Changes
 
+- **2026-02-23:** Added email verification on registration
+  - Verification token (crypto.randomBytes) with 24h expiry stored in users table
+  - Email sent via nodemailer (sendVerificationEmail in email-service.ts)
+  - Routes: GET /api/auth/verify-email?token=, POST /api/auth/resend-verification
+  - Frontend: verify-email page, verification banner on dashboard, post-registration message
 - **2026-02-23:** Added user registration/login system with email/password authentication
   - express-session with PostgreSQL session store (connect-pg-simple)
   - bcryptjs password hashing, session regeneration on login

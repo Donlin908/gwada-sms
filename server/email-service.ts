@@ -24,6 +24,66 @@ export function isEmailConfigured(): boolean {
   return transporter !== null && ADMIN_EMAIL !== "";
 }
 
+export async function sendVerificationEmail(email: string, token: string): Promise<boolean> {
+  if (!transporter) {
+    console.log("Email not configured. Verification token for", email, ":", token);
+    return false;
+  }
+
+  const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
+  const baseUrl = replitDomain ? `https://${replitDomain}` : 'http://localhost:5000';
+  const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
+
+  try {
+    await transporter.sendMail({
+      from: `"GWADA SMS" <${SMTP_USER}>`,
+      to: email,
+      subject: "Vérifiez votre adresse email - GWADA SMS",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #2563eb; margin: 0;">GWADA SMS</h1>
+            <p style="color: #6b7280; margin-top: 5px;">Service de numéros virtuels</p>
+          </div>
+          
+          <h2 style="color: #1f2937;">Confirmez votre adresse email</h2>
+          
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            Merci de vous être inscrit sur GWADA SMS ! Pour activer votre compte, 
+            veuillez cliquer sur le bouton ci-dessous :
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}" 
+               style="background-color: #2563eb; color: white; padding: 14px 32px; 
+                      text-decoration: none; border-radius: 8px; font-size: 16px; 
+                      font-weight: bold; display: inline-block;">
+              Vérifier mon email
+            </a>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px;">
+            Ce lien est valable pendant 24 heures. Si vous n'avez pas créé de compte, 
+            vous pouvez ignorer cet email.
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+          
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            GWADA SMS - Service de numéros virtuels pour les DOM
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`Verification email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    return false;
+  }
+}
+
 export interface UsageAlertData {
   phoneNumber: string;
   country: string;

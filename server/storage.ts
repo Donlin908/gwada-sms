@@ -27,7 +27,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserVerification(userId: string, data: { emailVerified?: boolean; verificationToken?: string | null; verificationExpires?: Date | null }): Promise<void>;
   getReservationsByUserId(userId: string): Promise<Reservation[]>;
   
   getPhoneNumbers(country: Country): Promise<PhoneNumber[]>;
@@ -79,9 +81,18 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.verificationToken, token)).limit(1);
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async updateUserVerification(userId: string, data: { emailVerified?: boolean; verificationToken?: string | null; verificationExpires?: Date | null }): Promise<void> {
+    await db.update(users).set(data).where(eq(users.id, userId));
   }
 
   async getReservationsByUserId(userId: string): Promise<Reservation[]> {

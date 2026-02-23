@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, User, Mail, Lock } from "lucide-react";
+import { Loader2, User, Mail, Lock, CheckCircle2 } from "lucide-react";
 
 export default function Auth() {
   const [, navigate] = useLocation();
@@ -15,6 +15,8 @@ export default function Auth() {
   const params = new URLSearchParams(searchString);
   const { user, login, register, loginError, registerError, isLoginPending, isRegisterPending } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(params.get("mode") === "register");
+  const [showVerificationSent, setShowVerificationSent] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -25,7 +27,7 @@ export default function Auth() {
   const [regConfirm, setRegConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
-  if (user) {
+  if (user && user.emailVerified) {
     navigate("/dashboard");
     return null;
   }
@@ -47,8 +49,13 @@ export default function Auth() {
       return;
     }
     try {
-      await register(regUsername, regEmail, regPassword);
-      navigate("/dashboard");
+      const result = await register(regUsername, regEmail, regPassword);
+      if (result.requiresVerification) {
+        setRegisteredEmail(regEmail);
+        setShowVerificationSent(true);
+      } else {
+        navigate("/dashboard");
+      }
     } catch {}
   };
 
@@ -69,7 +76,28 @@ export default function Auth() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!isRegisterMode ? (
+              {showVerificationSent ? (
+                <div className="space-y-4 text-center" data-testid="verification-sent">
+                  <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
+                  <h3 className="text-lg font-semibold">Vérifiez votre boîte mail</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Un email de vérification a été envoyé à{" "}
+                    <strong>{registeredEmail}</strong>.
+                    Cliquez sur le lien dans l'email pour activer votre compte.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Le lien est valable pendant 24 heures. Pensez à vérifier vos spams.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => navigate("/dashboard")}
+                    data-testid="button-go-dashboard"
+                  >
+                    Aller au tableau de bord
+                  </Button>
+                </div>
+              ) : !isRegisterMode ? (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
