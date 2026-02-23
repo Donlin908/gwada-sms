@@ -103,9 +103,9 @@ export function Header() {
                   Connexion
                 </Button>
               </Link>
-              <Link href="/numbers">
-                <Button data-testid="button-get-number">
-                  Obtenir un numéro
+              <Link href="/auth?mode=register">
+                <Button variant="default" data-testid="button-header-register">
+                  Inscription
                 </Button>
               </Link>
             </div>

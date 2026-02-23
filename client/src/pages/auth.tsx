@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -11,8 +11,10 @@ import { Loader2, User, Mail, Lock } from "lucide-react";
 
 export default function Auth() {
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
   const { user, login, register, loginError, registerError, isLoginPending, isRegisterPending } = useAuth();
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(params.get("mode") === "register");
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
