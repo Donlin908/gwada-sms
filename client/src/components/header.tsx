@@ -1,10 +1,23 @@
 import { Link, useLocation } from "wouter";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, User, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -42,15 +55,61 @@ export function Header() {
           >
             Tarifs
           </a>
+          {user && (
+            <Link
+              href="/dashboard"
+              className={`text-sm font-medium transition-colors ${
+                location === "/dashboard" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="link-dashboard"
+            >
+              Mon espace
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link href="/numbers">
-            <Button data-testid="button-get-number">
-              Obtenir un numéro
-            </Button>
-          </Link>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2" data-testid="button-user-menu">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline">{user.username}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard" className="flex items-center gap-2 cursor-pointer" data-testid="menu-dashboard">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Mon espace
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 cursor-pointer text-destructive"
+                  data-testid="menu-logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Se déconnecter
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/auth">
+                <Button variant="outline" data-testid="button-header-login">
+                  Connexion
+                </Button>
+              </Link>
+              <Link href="/numbers">
+                <Button data-testid="button-get-number">
+                  Obtenir un numéro
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

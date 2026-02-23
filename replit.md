@@ -6,6 +6,15 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## Recent Changes
+
+- **2026-02-23:** Added user registration/login system with email/password authentication
+  - express-session with PostgreSQL session store (connect-pg-simple)
+  - bcryptjs password hashing, session regeneration on login
+  - Auth pages: /auth (login/register), /dashboard (user reservations tracking)
+  - Reservations now linked to user accounts (optional userId field)
+  - Header shows login/profile dropdown when authenticated
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -42,6 +51,13 @@ Preferred communication style: Simple, everyday language.
 - `GET /api/numbers/:id/check-usage` - Check if number was used before
 - `POST /api/sync-twilio-numbers` - Sync numbers from Twilio
 - `GET /api/twilio/status` - Check Twilio configuration status
+
+**Auth Endpoints:**
+- `POST /api/auth/register` - Register new user (body: { username, email, password })
+- `POST /api/auth/login` - Login user (body: { email, password })
+- `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/logout` - Logout user
+- `GET /api/user/reservations` - Get logged-in user's reservations
 
 **Stripe Payment Endpoints:**
 - `GET /api/stripe/publishable-key` - Get Stripe publishable key

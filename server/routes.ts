@@ -1,14 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { type Country, pricingPlans } from "@shared/schema";
+import { type Country, pricingPlans, phoneNumbers } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { isEmailConfigured } from "./email-service";
 import { z } from "zod";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { db } from "./db";
+import bcrypt from "bcryptjs";
 
 const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
@@ -25,11 +26,175 @@ const adminLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+const registerSchema = z.object({
+  username: z.string().min(3, "Le nom d'utilisateur doit faire au moins 3 caractères"),
+  email: z.string().email("Email invalide"),
+  password: z.string().min(6, "Le mot de passe doit faire au moins 6 caractères"),
+});
+
+const loginSchema = z.object({
+  email: z.string().email("Email invalide"),
+  password: z.string().min(1, "Mot de passe requis"),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const parseResult = registerSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const firstError = parseResult.error.errors[0]?.message || "Données invalides";
+        return res.status(400).json({ error: firstError });
+      }
+
+      const { username, email, password } = parseResult.data;
+
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        return res.status(409).json({ error: "Cet email est déjà utilisé" });
+      }
+
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) {
+        return res.status(409).json({ error: "Ce nom d'utilisateur est déjà pris" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({
+        username,
+        email,
+        password: hashedPassword,
+      });
+
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error:", err);
+          return res.status(500).json({ error: "Erreur serveur" });
+        }
+        req.session.userId = user.id;
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ error: "Erreur serveur" });
+          }
+          res.json({
+            user: { id: user.id, username: user.username, email: user.email },
+          });
+        });
+      });
+    } catch (error) {
+      console.error("Error during registration:", error);
+      res.status(500).json({ error: "Erreur lors de l'inscription" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const parseResult = loginSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Données invalides" });
+      }
+
+      const { email, password } = parseResult.data;
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: "Email ou mot de passe incorrect" });
+      }
+
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ error: "Email ou mot de passe incorrect" });
+      }
+
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error:", err);
+          return res.status(500).json({ error: "Erreur serveur" });
+        }
+        req.session.userId = user.id;
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ error: "Erreur serveur" });
+          }
+          res.json({
+            user: { id: user.id, username: user.username, email: user.email },
+          });
+        });
+      });
+    } catch (error) {
+      console.error("Error during login:", error);
+      res.status(500).json({ error: "Erreur de connexion" });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "Utilisateur non trouvé" });
+      }
+
+      res.json({
+        user: { id: user.id, username: user.username, email: user.email },
+      });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Erreur lors de la déconnexion" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ message: "Déconnexion réussie" });
+    });
+  });
+
+  app.get("/api/user/reservations", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
+      const userReservations = await storage.getReservationsByUserId(req.session.userId);
+
+      const enriched = await Promise.all(
+        userReservations.map(async (r) => {
+          const phone = await storage.getPhoneNumber(r.phoneNumberId);
+          const plan = pricingPlans.find((p) => p.id === r.planId);
+          return {
+            id: r.id,
+            phoneNumber: phone?.number || "Inconnu",
+            country: phone?.country || "unknown",
+            planName: plan?.name || r.planId,
+            planDuration: plan?.duration || "",
+            startsAt: r.startsAt.toISOString(),
+            expiresAt: r.expiresAt.toISOString(),
+            isActive: r.isActive && new Date(r.expiresAt) > new Date(),
+          };
+        })
+      );
+
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching user reservations:", error);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   app.get("/api/numbers", async (req, res) => {
     try {
       const country = (req.query.country as Country) || "france";
@@ -603,6 +768,7 @@ export async function registerRoutes(
 
       const reservation = await storage.createReservation({
         phoneNumberId,
+        userId: req.session.userId || null,
         planId,
         sessionId: userSessionId,
         startsAt: now,
