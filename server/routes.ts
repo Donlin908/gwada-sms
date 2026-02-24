@@ -265,6 +265,7 @@ export async function registerRoutes(
           const plan = pricingPlans.find((p) => p.id === r.planId);
           return {
             id: r.id,
+            phoneNumberId: r.phoneNumberId,
             phoneNumber: phone?.number || "Inconnu",
             country: phone?.country || "unknown",
             planName: plan?.name || r.planId,

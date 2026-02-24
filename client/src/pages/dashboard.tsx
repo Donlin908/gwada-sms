@@ -12,6 +12,7 @@ import { FranceFlag, UsaFlag } from "@/components/flag-icons";
 
 interface UserReservation {
   id: string;
+  phoneNumberId: string;
   phoneNumber: string;
   country: string;
   planName: string;
@@ -170,7 +171,7 @@ export default function Dashboard() {
                               <Clock className="inline h-3 w-3 mr-1" />
                               {getTimeRemaining(r.expiresAt)}
                             </p>
-                            <Link href={`/messages/${r.id.split("-")[0]}`}>
+                            <Link href={`/messages/${r.phoneNumberId}`}>
                               <Button variant="outline" size="sm" className="gap-1" data-testid={`button-messages-${r.id}`}>
                                 <MessageSquare className="h-3 w-3" />
                                 SMS

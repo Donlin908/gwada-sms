@@ -19,11 +19,13 @@ export default function Messages() {
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
+    enabled: !!id && id !== "null",
   });
 
   const { data: messages, isLoading: isLoadingMessages, refetch, isRefetching } = useQuery<SmsMessageResponse[]>({
     queryKey: [`/api/messages/${id}`],
     refetchInterval: 10000,
+    enabled: !!id && id !== "null",
   });
 
   const handleCopy = async () => {
