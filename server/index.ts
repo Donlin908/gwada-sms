@@ -8,6 +8,7 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import pg from "pg";
 
 const app = express();
 const httpServer = createServer(app);
@@ -17,6 +18,28 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+async function ensureSessionTable() {
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+  } catch (err) {
+    console.error('Failed to ensure session table:', err);
+  } finally {
+    await client.end();
+  }
+}
+
+await ensureSessionTable();
 
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
