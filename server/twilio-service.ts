@@ -168,6 +168,16 @@ export interface PurchasedNumber {
   friendlyName: string;
 }
 
+async function getTwilioAddressSid(): Promise<string | undefined> {
+  if (!client) return undefined;
+  try {
+    const addresses = await client.addresses.list({ limit: 1 });
+    return addresses[0]?.sid;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: string): Promise<PurchasedNumber | null> {
   if (!client) {
     console.log("Twilio client not available");
@@ -175,10 +185,15 @@ export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: st
   }
 
   try {
-    const purchased = await client.incomingPhoneNumbers.create({
+    const addressSid = process.env.TWILIO_ADDRESS_SID || await getTwilioAddressSid();
+    const params: any = {
       phoneNumber,
       friendlyName: friendlyName || `GwadaSMS-${new Date().toISOString().split('T')[0]}`,
-    });
+    };
+    if (addressSid) {
+      params.addressSid = addressSid;
+    }
+    const purchased = await client.incomingPhoneNumbers.create(params);
 
     return {
       sid: purchased.sid,
