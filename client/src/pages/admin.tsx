@@ -40,6 +40,9 @@ interface AdminStats {
     usageAlertThreshold: number;
     autoPurchaseEnabled: boolean;
     minNumbersPerCountry: number;
+    maxUsagesDaily: number;
+    maxUsagesWeekly: number;
+    maxUsagesMonthly: number;
   };
   services: {
     emailConfigured: boolean;
@@ -369,6 +372,9 @@ export default function AdminPage() {
   const [usageThreshold, setUsageThreshold] = useState(100);
   const [autoPurchaseEnabled, setAutoPurchaseEnabled] = useState(false);
   const [minPerCountry, setMinPerCountry] = useState(3);
+  const [maxUsagesDaily, setMaxUsagesDaily] = useState(20);
+  const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(10);
+  const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(5);
   
   const handleLogout = () => {
     sessionStorage.removeItem("adminAuth");
@@ -391,6 +397,9 @@ export default function AdminPage() {
       setUsageThreshold(stats.settings.usageAlertThreshold);
       setAutoPurchaseEnabled(stats.settings.autoPurchaseEnabled);
       setMinPerCountry(stats.settings.minNumbersPerCountry);
+      setMaxUsagesDaily(stats.settings.maxUsagesDaily ?? 20);
+      setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 10);
+      setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 5);
     }
   }, [stats]);
   
@@ -400,6 +409,9 @@ export default function AdminPage() {
         usageAlertThreshold: usageThreshold,
         autoPurchaseEnabled,
         minNumbersPerCountry: minPerCountry,
+        maxUsagesDaily,
+        maxUsagesWeekly,
+        maxUsagesMonthly,
       });
     },
     onSuccess: () => {
@@ -575,6 +587,48 @@ export default function AdminPage() {
               <p className="text-xs text-muted-foreground">
                 Nombre minimum de numéros disponibles par pays
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Limite d'utilisations par plan</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Nombre max de fois qu'un numéro peut être loué avant d'être retiré
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label htmlFor="max-daily" className="text-xs text-muted-foreground">24h</Label>
+                  <Input
+                    id="max-daily"
+                    type="number"
+                    value={maxUsagesDaily}
+                    onChange={(e) => setMaxUsagesDaily(parseInt(e.target.value) || 20)}
+                    data-testid="input-max-daily"
+                    min={1}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="max-weekly" className="text-xs text-muted-foreground">7 jours</Label>
+                  <Input
+                    id="max-weekly"
+                    type="number"
+                    value={maxUsagesWeekly}
+                    onChange={(e) => setMaxUsagesWeekly(parseInt(e.target.value) || 10)}
+                    data-testid="input-max-weekly"
+                    min={1}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="max-monthly" className="text-xs text-muted-foreground">30 jours</Label>
+                  <Input
+                    id="max-monthly"
+                    type="number"
+                    value={maxUsagesMonthly}
+                    onChange={(e) => setMaxUsagesMonthly(parseInt(e.target.value) || 5)}
+                    data-testid="input-max-monthly"
+                    min={1}
+                  />
+                </div>
+              </div>
             </div>
             
             <Button 

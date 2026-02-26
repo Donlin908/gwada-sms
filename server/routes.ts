@@ -17,6 +17,9 @@ const adminSettingsSchema = z.object({
   autoPurchaseEnabled: z.boolean().optional(),
   minNumbersPerCountry: z.number().int().min(1).max(100).optional(),
   adminEmail: z.string().email().optional(),
+  maxUsagesDaily: z.number().int().min(1).max(1000).optional(),
+  maxUsagesWeekly: z.number().int().min(1).max(1000).optional(),
+  maxUsagesMonthly: z.number().int().min(1).max(1000).optional(),
 });
 
 const purchaseNumberSchema = z.object({
@@ -293,18 +296,62 @@ export async function registerRoutes(
       
       await storage.expireOldReservations();
       
-      const numbers = await storage.getPhoneNumbers(country);
-      
-      const formattedNumbers = numbers.map(num => ({
-        id: num.id,
-        number: num.number,
-        country: num.country,
-        isAvailable: num.isAvailable,
-        isValid: num.isValid,
-        lastActive: num.lastValidatedAt?.toISOString() || new Date().toISOString(),
-      }));
+      const [numbers, maxDailyStr, maxWeeklyStr, maxMonthlyStr] = await Promise.all([
+        storage.getPhoneNumbers(country),
+        storage.getSetting("max_usages_daily"),
+        storage.getSetting("max_usages_weekly"),
+        storage.getSetting("max_usages_monthly"),
+      ]);
+
+      const maxUsageDaily = parseInt(maxDailyStr || "20");
+      const maxUsageWeekly = parseInt(maxWeeklyStr || "10");
+      const maxUsageMonthly = parseInt(maxMonthlyStr || "5");
+
+      const formattedNumbers = numbers.map(num => {
+        const twilioActive = num.isValid;
+        const availabilityByPlan = {
+          daily: num.isAvailable && twilioActive && num.usageCount < maxUsageDaily,
+          weekly: num.isAvailable && twilioActive && num.usageCount < maxUsageWeekly,
+          monthly: num.isAvailable && twilioActive && num.usageCount < maxUsageMonthly,
+        };
+        return {
+          id: num.id,
+          number: num.number,
+          country: num.country,
+          isAvailable: num.isAvailable,
+          isValid: num.isValid,
+          twilioActive,
+          usageCount: num.usageCount,
+          maxUsageDaily,
+          maxUsageWeekly,
+          maxUsageMonthly,
+          availabilityByPlan,
+          lastActive: num.lastValidatedAt?.toISOString() || new Date().toISOString(),
+          lastTwilioCheck: num.lastTwilioCheck?.toISOString() || null,
+        };
+      });
       
       res.json(formattedNumbers);
+
+      // Background: check Twilio for numbers not verified recently (> 60 min)
+      setImmediate(async () => {
+        try {
+          const stale = await storage.getPhoneNumbersNeedingTwilioCheck(60);
+          for (const num of stale.slice(0, 5)) {
+            const active = await twilioService.checkNumberActiveInTwilio(num.twilioSid);
+            await storage.updatePhoneNumber(num.id, {
+              lastTwilioCheck: new Date(),
+              isValid: active,
+              ...(active ? {} : { lastValidatedAt: new Date() }),
+            });
+            if (!active) {
+              console.log(`Number ${num.number} no longer active in Twilio — marked invalid`);
+            }
+          }
+        } catch (e) {
+          // silent — don't crash the response
+        }
+      });
     } catch (error) {
       console.error("Error fetching phone numbers:", error);
       res.status(500).json({ error: "Failed to fetch phone numbers" });
@@ -405,6 +452,20 @@ export async function registerRoutes(
       const hasUsed = await storage.hasBeenUsedBySession(id, sessionId);
       if (hasUsed) {
         return res.status(409).json({ error: "You have already used this number before" });
+      }
+
+      // Check per-plan usage limits
+      const settingKey = planId === "daily" ? "max_usages_daily" : planId === "weekly" ? "max_usages_weekly" : "max_usages_monthly";
+      const defaultLimit = planId === "daily" ? "20" : planId === "weekly" ? "10" : "5";
+      const maxUsageStr = await storage.getSetting(settingKey) || defaultLimit;
+      const maxUsage = parseInt(maxUsageStr);
+      if (phoneNumber.usageCount >= maxUsage) {
+        return res.status(409).json({ error: `Ce numéro a atteint la limite d'utilisation pour le plan ${plan.name} (${maxUsage} fois)` });
+      }
+
+      // Check Twilio validity
+      if (!phoneNumber.isValid) {
+        return res.status(409).json({ error: "Ce numéro n'est plus actif chez notre fournisseur" });
       }
       
       const now = new Date();
@@ -565,6 +626,9 @@ export async function registerRoutes(
       const usageThreshold = await storage.getSetting("usage_alert_threshold") || "100";
       const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled") || "false";
       const minPerCountry = await storage.getSetting("min_numbers_per_country") || "3";
+      const maxUsagesDaily = await storage.getSetting("max_usages_daily") || "20";
+      const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "10";
+      const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "5";
       
       res.json({
         ...stats,
@@ -572,6 +636,9 @@ export async function registerRoutes(
           usageAlertThreshold: parseInt(usageThreshold),
           autoPurchaseEnabled: autoPurchaseEnabled === "true",
           minNumbersPerCountry: parseInt(minPerCountry),
+          maxUsagesDaily: parseInt(maxUsagesDaily),
+          maxUsagesWeekly: parseInt(maxUsagesWeekly),
+          maxUsagesMonthly: parseInt(maxUsagesMonthly),
         },
         services: {
           emailConfigured,
@@ -594,7 +661,7 @@ export async function registerRoutes(
         });
       }
       
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail } = parseResult.data;
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -607,6 +674,15 @@ export async function registerRoutes(
       }
       if (adminEmail !== undefined) {
         await storage.setSetting("admin_email", adminEmail);
+      }
+      if (maxUsagesDaily !== undefined) {
+        await storage.setSetting("max_usages_daily", String(maxUsagesDaily));
+      }
+      if (maxUsagesWeekly !== undefined) {
+        await storage.setSetting("max_usages_weekly", String(maxUsagesWeekly));
+      }
+      if (maxUsagesMonthly !== undefined) {
+        await storage.setSetting("max_usages_monthly", String(maxUsagesMonthly));
       }
       
       res.json({ message: "Settings updated successfully" });

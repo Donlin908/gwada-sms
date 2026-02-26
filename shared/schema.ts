@@ -38,6 +38,7 @@ export const phoneNumbers = pgTable("phone_numbers", {
   isValid: boolean("is_valid").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),
   lastValidatedAt: timestamp("last_validated_at"),
+  lastTwilioCheck: timestamp("last_twilio_check"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -131,13 +132,26 @@ export interface PricingPlan {
   isRecommended: boolean;
 }
 
+export interface AvailabilityByPlan {
+  daily: boolean;
+  weekly: boolean;
+  monthly: boolean;
+}
+
 export interface PhoneNumberResponse {
   id: string;
   number: string;
   country: Country;
   isAvailable: boolean;
   isValid: boolean;
+  twilioActive: boolean;
+  usageCount: number;
+  maxUsageDaily: number;
+  maxUsageWeekly: number;
+  maxUsageMonthly: number;
+  availabilityByPlan: AvailabilityByPlan;
   lastActive: string;
+  lastTwilioCheck: string | null;
 }
 
 export interface SmsMessageResponse {

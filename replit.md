@@ -56,7 +56,7 @@ Preferred communication style: Simple, everyday language.
 - **Build Process:** esbuild for server bundling, Vite for client
 
 **API Endpoints:**
-- `GET /api/numbers?country={france|usa}` - List available phone numbers
+- `GET /api/numbers?country={france|usa}` - List available phone numbers with per-plan availability, usage counts, and Twilio status
 - `GET /api/numbers/:id` - Get single phone number details
 - `GET /api/messages/:phoneNumberId` - Get SMS messages for a number
 - `POST /api/numbers/:id/reserve` - Reserve a phone number

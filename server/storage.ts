@@ -36,9 +36,10 @@ export interface IStorage {
   getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
   getPhoneNumberByTwilioSid(twilioSid: string): Promise<PhoneNumber | undefined>;
   createPhoneNumber(data: InsertPhoneNumber): Promise<PhoneNumber>;
-  updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt'>>): Promise<void>;
+  updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck'>>): Promise<void>;
   updatePhoneNumberAvailability(id: string, isAvailable: boolean): Promise<void>;
   updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void>;
+  getPhoneNumbersNeedingTwilioCheck(olderThanMinutes: number): Promise<PhoneNumber[]>;
   
   getMessages(phoneNumberId: string): Promise<SmsMessage[]>;
   createMessage(data: InsertSmsMessage): Promise<SmsMessage>;
@@ -131,7 +132,7 @@ export class DatabaseStorage implements IStorage {
     return number;
   }
 
-  async updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt'>>): Promise<void> {
+  async updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck'>>): Promise<void> {
     await db.update(phoneNumbers).set(data).where(eq(phoneNumbers.id, id));
   }
 
@@ -141,6 +142,12 @@ export class DatabaseStorage implements IStorage {
 
   async updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void> {
     await db.update(phoneNumbers).set({ isValid, lastValidatedAt: new Date() }).where(eq(phoneNumbers.id, id));
+  }
+
+  async getPhoneNumbersNeedingTwilioCheck(olderThanMinutes: number): Promise<PhoneNumber[]> {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+    const all = await db.select().from(phoneNumbers).where(eq(phoneNumbers.isValid, true));
+    return all.filter(n => !n.lastTwilioCheck || n.lastTwilioCheck < cutoff);
   }
 
   async getMessages(phoneNumberId: string): Promise<SmsMessage[]> {

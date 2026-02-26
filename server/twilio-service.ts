@@ -59,6 +59,17 @@ export async function getAvailableTwilioNumbers(countryCode: string): Promise<Tw
   }
 }
 
+export async function checkNumberActiveInTwilio(twilioSid: string): Promise<boolean> {
+  if (!client) return true;
+  if (twilioSid.startsWith("DEMO")) return true;
+  try {
+    await client.incomingPhoneNumbers(twilioSid).fetch();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getAllTwilioNumbers(): Promise<TwilioPhoneNumber[]> {
   if (!client) {
     console.log("Twilio client not available, returning empty list");
