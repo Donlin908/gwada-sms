@@ -5,10 +5,12 @@ let connectionSettings: any;
 async function getCredentials() {
   const testSecretKey = process.env.SLACK_TEST_API_KEY_GWADA_SMS;
   const liveSecretKey = process.env.SLACK_LIVE_API_KEY_GWADASMS;
-  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  const testPublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  const livePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY_LIVE;
   const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
 
   const secretKey = isProduction ? (liveSecretKey || testSecretKey) : testSecretKey;
+  const publishableKey = isProduction ? (livePublishableKey || testPublishableKey) : testPublishableKey;
 
   if (secretKey && publishableKey) {
     return { publishableKey, secretKey };
@@ -52,7 +54,7 @@ async function getCredentials() {
     }
   }
 
-  throw new Error('Stripe credentials not found. Configure SLACK_TEST_API_KEY_GWADA_SMS and STRIPE_PUBLISHABLE_KEY.');
+  throw new Error('Stripe credentials not found. Configure SLACK_TEST_API_KEY_GWADA_SMS and STRIPE_PUBLISHABLE_KEY (dev) or SLACK_LIVE_API_KEY_GWADASMS and STRIPE_PUBLISHABLE_KEY_LIVE (production).');
 }
 
 export async function getUncachableStripeClient() {
