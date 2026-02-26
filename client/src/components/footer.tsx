@@ -60,6 +60,17 @@ export function Footer() {
         </div>
 
         <div className="mt-12 border-t pt-6 text-center text-sm text-muted-foreground">
+          <div className="flex flex-wrap justify-center gap-4 mb-3">
+            <Link href="/mentions-legales" className="transition-colors hover:text-foreground" data-testid="link-footer-mentions">
+              Mentions légales
+            </Link>
+            <Link href="/politique-confidentialite" className="transition-colors hover:text-foreground" data-testid="link-footer-privacy">
+              Politique de confidentialité
+            </Link>
+            <Link href="/cgu" className="transition-colors hover:text-foreground" data-testid="link-footer-cgu">
+              CGU
+            </Link>
+          </div>
           <p>© {new Date().getFullYear()} GWADA SMS. Tous droits réservés.</p>
         </div>
       </div>

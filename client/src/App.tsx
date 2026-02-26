@@ -15,6 +15,9 @@ import Auth from "@/pages/auth";
 import VerifyEmail from "@/pages/verify-email";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
+import MentionsLegales from "@/pages/mentions-legales";
+import PolitiqueConfidentialite from "@/pages/politique-confidentialite";
+import CGU from "@/pages/cgu";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +33,9 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/admin" component={Admin} />
+      <Route path="/mentions-legales" component={MentionsLegales} />
+      <Route path="/politique-confidentialite" component={PolitiqueConfidentialite} />
+      <Route path="/cgu" component={CGU} />
       <Route component={NotFound} />
     </Switch>
   );
