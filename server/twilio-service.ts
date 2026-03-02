@@ -148,6 +148,10 @@ export interface AvailableNumberToPurchase {
   region: string;
   isoCountry: string;
   smsCapable: boolean;
+  mmsCapable: boolean;
+  voiceCapable: boolean;
+  addressRequired: boolean;
+  monthlyFee?: number;
 }
 
 export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: number = 5): Promise<AvailableNumberToPurchase[]> {
@@ -157,24 +161,64 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
   }
 
   try {
-    // Twilio ne propose que "local" pour FR et "local"/"toll_free" pour US.
-    // Le champ capabilities.sms est undefined dans la recherche (comportement API Twilio connu),
-    // mais le paramètre smsEnabled:true garantit la compatibilité SMS à l'achat.
-    const numbers = await client.availablePhoneNumbers(countryCode).local
-      .list({ smsEnabled: true, limit: limit * 2 });
+    // Filtres basés sur les colonnes visibles dans la console Twilio :
+    // Capabilities (Voice/SMS/MMS/Fax) + Address Requirement + Type
+    const searchParams: Record<string, any> = {
+      smsEnabled: true,   // Colonne SMS — obligatoire
+      mmsEnabled: true,   // Colonne MMS — obligatoire pour compatibilité maximale
+      limit: limit * 3,   // On récupère plus pour compenser les filtres stricts
+    };
 
-    return numbers.slice(0, limit).map((num: any) => ({
-      phoneNumber: num.phoneNumber,
-      friendlyName: num.friendlyName,
-      locality: num.locality || "",
-      region: num.region || "",
-      isoCountry: num.isoCountry,
-      smsCapable: true, // garanti par smsEnabled:true dans la requête API Twilio
-    }));
+    if (countryCode === "US") {
+      // USA : exclure les numéros qui nécessitent une adresse (colonne "Address Requirement: None")
+      searchParams.excludeAllAddressRequired = true;
+    }
+
+    const rawNumbers = await client.availablePhoneNumbers(countryCode).local
+      .list(searchParams);
+
+    // Filtre supplémentaire : on rejette les numéros fax-only ou sans MMS confirmé
+    // Note : capabilities peut être undefined dans la recherche (comportement Twilio connu)
+    // On se fie à mmsEnabled:true de la requête comme garantie principale
+    const filtered = rawNumbers.filter((num: any) => {
+      // Si capabilities est renseigné, vérifier SMS + MMS
+      if (num.capabilities && typeof num.capabilities.sms !== "undefined") {
+        return num.capabilities.sms === true && num.capabilities.mms === true;
+      }
+      // Sinon, on fait confiance aux paramètres de la requête API
+      return true;
+    });
+
+    const results = filtered.slice(0, limit);
+
+    if (results.length === 0 && rawNumbers.length > 0) {
+      // Fallback : si MMS strict élimine tout, prendre SMS seul
+      console.log(`[Twilio] Aucun numéro SMS+MMS disponible pour ${countryCode}, fallback SMS uniquement`);
+      return rawNumbers.slice(0, limit).map((num: any) => mapNumber(num, false));
+    }
+
+    return results.map((num: any) => mapNumber(num, true));
   } catch (error) {
     console.error("Error searching available numbers:", error);
     return [];
   }
+}
+
+function mapNumber(num: any, mmsCapable: boolean): AvailableNumberToPurchase {
+  const caps = num.capabilities || {};
+  // addressRequirements : "none" | "any" | "local" | "foreign"
+  const addrReq = num.addressRequirements ?? "none";
+  return {
+    phoneNumber: num.phoneNumber,
+    friendlyName: num.friendlyName,
+    locality: num.locality || "",
+    region: num.region || "",
+    isoCountry: num.isoCountry,
+    smsCapable: true,                              // garanti par smsEnabled:true
+    mmsCapable,                                    // garanti par mmsEnabled:true ou fallback
+    voiceCapable: caps.voice !== false,            // Voice presque toujours true
+    addressRequired: addrReq !== "none",           // Colonne "Address Requirement"
+  };
 }
 
 export interface PurchasedNumber {
