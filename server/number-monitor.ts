@@ -82,10 +82,21 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
     
     if (validAvailableNumbers.length < minPerCountry) {
       const needed = minPerCountry - validAvailableNumbers.length;
-      console.log(`Need to purchase ${needed} numbers for ${country} (current: ${validAvailableNumbers.length})`);
       
       const countryCode = country === "france" ? "FR" : "US";
+
+      if (country === "france") {
+        const bundleBlocked = await storage.getSetting("france_bundle_required");
+        if (bundleBlocked === "true") {
+          console.log(`[Monitor] Achat France suspendu — dossier réglementaire (bundle ARCEP) requis sur Twilio.`);
+          continue;
+        }
+      }
+
+      console.log(`Need to purchase ${needed} numbers for ${country} (current: ${validAvailableNumbers.length})`);
+      
       const available = await searchAvailableNumbers(countryCode, needed);
+      let bundleErrorEncountered = false;
       
       for (const num of available.slice(0, needed)) {
         const purchased = await purchasePhoneNumber(num.phoneNumber);
@@ -106,7 +117,15 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
             country,
             reason: `Nombre de numéros disponibles insuffisant (${validAvailableNumbers.length}/${minPerCountry})`,
           });
+        } else if (country === "france") {
+          bundleErrorEncountered = true;
+          break;
         }
+      }
+
+      if (bundleErrorEncountered) {
+        await storage.setSetting("france_bundle_required", "true");
+        console.log(`[Monitor] France auto-purchase désactivé — créez un bundle ARCEP sur console.twilio.com/us1/regulatory-compliance/bundles`);
       }
     }
   }

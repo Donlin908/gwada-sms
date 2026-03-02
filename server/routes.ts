@@ -629,6 +629,7 @@ export async function registerRoutes(
       const maxUsagesDaily = await storage.getSetting("max_usages_daily") || "20";
       const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "10";
       const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "5";
+      const franceBundleRequired = await storage.getSetting("france_bundle_required") || "false";
       
       res.json({
         ...stats,
@@ -639,6 +640,7 @@ export async function registerRoutes(
           maxUsagesDaily: parseInt(maxUsagesDaily),
           maxUsagesWeekly: parseInt(maxUsagesWeekly),
           maxUsagesMonthly: parseInt(maxUsagesMonthly),
+          franceBundleRequired: franceBundleRequired === "true",
         },
         services: {
           emailConfigured,

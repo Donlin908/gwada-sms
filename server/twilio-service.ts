@@ -189,7 +189,10 @@ async function getTwilioAddressSid(): Promise<string | undefined> {
   }
 }
 
-export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: string): Promise<PurchasedNumber | null> {
+export async function purchasePhoneNumber(
+  phoneNumber: string,
+  friendlyName?: string
+): Promise<PurchasedNumber | null> {
   if (!client) {
     console.log("Twilio client not available");
     return null;
@@ -211,8 +214,18 @@ export async function purchasePhoneNumber(phoneNumber: string, friendlyName?: st
       phoneNumber: purchased.phoneNumber,
       friendlyName: purchased.friendlyName,
     };
-  } catch (error) {
-    console.error("Error purchasing phone number:", error);
+  } catch (error: any) {
+    const code = error?.code;
+    if (code === 21649) {
+      console.warn(
+        `[Twilio] Numéro ${phoneNumber} — dossier de conformité réglementaire requis (bundle ARCEP France). ` +
+        `Créez un bundle sur console.twilio.com/us1/regulatory-compliance/bundles`
+      );
+    } else if (code === 21404) {
+      console.warn(`[Twilio] Numéro ${phoneNumber} — limite de compte trial dépassée. Mettez à jour votre compte.`);
+    } else {
+      console.error("Error purchasing phone number:", error);
+    }
     return null;
   }
 }

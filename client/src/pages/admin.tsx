@@ -43,6 +43,7 @@ interface AdminStats {
     maxUsagesDaily: number;
     maxUsagesWeekly: number;
     maxUsagesMonthly: number;
+    franceBundleRequired: boolean;
   };
   services: {
     emailConfigured: boolean;
@@ -512,6 +513,28 @@ export default function AdminPage() {
           </Button>
         </div>
       </div>
+
+      {stats?.settings.franceBundleRequired && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 p-4" data-testid="alert-france-bundle">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="font-semibold text-amber-800 dark:text-amber-300">Numéros France — Dossier réglementaire requis (ARCEP)</p>
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Twilio exige un <strong>bundle de conformité</strong> pour acheter des numéros français. L'achat automatique France est suspendu jusqu'à validation.
+            </p>
+            <ol className="text-sm text-amber-700 dark:text-amber-400 list-decimal list-inside space-y-0.5 mt-1">
+              <li>Allez sur <a href="https://console.twilio.com/us1/regulatory-compliance/bundles" target="_blank" rel="noopener noreferrer" className="underline font-medium">console.twilio.com → Regulatory Compliance → Bundles</a></li>
+              <li>Créez un bundle pour <strong>France / NATIONAL / Business</strong></li>
+              <li>Soumettez votre pièce d'identité et justificatif de domicile</li>
+              <li>Attendez l'approbation Twilio (1-3 jours ouvrés)</li>
+              <li>Une fois approuvé, désactivez ce blocage via l'API ou le prochain cycle d'achat</li>
+            </ol>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+              Les numéros USA fonctionnent normalement et sont achetés automatiquement.
+            </p>
+          </div>
+        </div>
+      )}
       
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard 
