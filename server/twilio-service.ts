@@ -157,19 +157,42 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
   }
 
   try {
-    const numbers = await client.availablePhoneNumbers(countryCode)
-      .local
-      .list({ smsEnabled: true, limit: limit * 3 });
+    let numbers: any[] = [];
 
-    const smsNumbers = numbers.filter(num => num.capabilities?.sms === true);
+    if (countryCode === "FR") {
+      // Pour la France : chercher les vrais numéros mobiles (+336 et +337)
+      // Les numéros mobiles français nécessitent un bundle ARCEP validé
+      const [m6, m7] = await Promise.all([
+        client.availablePhoneNumbers("FR").mobile
+          .list({ smsEnabled: true, limit: limit * 2 })
+          .catch(() => [] as any[]),
+        client.availablePhoneNumbers("FR").local
+          .list({ contains: "+337*", smsEnabled: true, limit: limit * 2 })
+          .catch(() => [] as any[]),
+      ]);
+      numbers = [...m6, ...m7];
 
-    return smsNumbers.slice(0, limit).map(num => ({
+      // Fallback : numéros locaux France si aucun mobile disponible
+      if (numbers.length === 0) {
+        numbers = await client.availablePhoneNumbers("FR").local
+          .list({ smsEnabled: true, limit: limit * 2 })
+          .catch(() => []);
+      }
+    } else {
+      // USA : les numéros local Twilio sont SMS-capable malgré capabilities=undefined dans la recherche
+      // smsEnabled: true dans la requête API est la source fiable, pas le champ capabilities
+      numbers = await client.availablePhoneNumbers("US").local
+        .list({ smsEnabled: true, limit: limit * 2 });
+    }
+
+    // Le paramètre smsEnabled:true de l'API est fiable — capabilities peut être undefined dans la recherche
+    return numbers.slice(0, limit).map((num: any) => ({
       phoneNumber: num.phoneNumber,
       friendlyName: num.friendlyName,
       locality: num.locality || "",
       region: num.region || "",
       isoCountry: num.isoCountry,
-      smsCapable: num.capabilities?.sms === true,
+      smsCapable: true, // garanti par smsEnabled:true dans la requête API
     }));
   } catch (error) {
     console.error("Error searching available numbers:", error);
