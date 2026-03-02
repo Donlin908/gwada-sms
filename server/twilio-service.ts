@@ -158,9 +158,11 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
   try {
     const numbers = await client.availablePhoneNumbers(countryCode)
       .local
-      .list({ smsEnabled: true, limit });
+      .list({ smsEnabled: true, limit: limit * 3 });
 
-    return numbers.map(num => ({
+    const smsNumbers = numbers.filter(num => num.capabilities?.sms === true);
+
+    return smsNumbers.slice(0, limit).map(num => ({
       phoneNumber: num.phoneNumber,
       friendlyName: num.friendlyName,
       locality: num.locality || "",
@@ -208,6 +210,23 @@ export async function purchasePhoneNumber(
       params.addressSid = addressSid;
     }
     const purchased = await client.incomingPhoneNumbers.create(params);
+
+    const smsCapable = purchased.capabilities?.sms ?? false;
+    if (!smsCapable) {
+      console.warn(
+        `[Twilio] Numéro ${purchased.phoneNumber} acheté mais sans capacité SMS — libération immédiate.`
+      );
+      try {
+        await client.incomingPhoneNumbers(purchased.sid).remove();
+      } catch (releaseErr) {
+        console.error(`[Twilio] Impossible de libérer ${purchased.phoneNumber}:`, releaseErr);
+      }
+      return null;
+    }
+
+    console.log(
+      `[Twilio] Numéro ${purchased.phoneNumber} acheté ✓ — SMS: ${smsCapable} | MMS: ${purchased.capabilities?.mms ?? false} | Voice: ${purchased.capabilities?.voice ?? false}`
+    );
 
     return {
       sid: purchased.sid,
