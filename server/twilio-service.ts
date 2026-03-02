@@ -193,6 +193,41 @@ async function getTwilioAddressSid(): Promise<string | undefined> {
   }
 }
 
+export async function checkFranceBundleApproved(): Promise<boolean> {
+  if (!client) return false;
+  try {
+    const bundles = await client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 });
+    const approved = bundles.find(b => b.status === "twilio-approved");
+    return !!approved;
+  } catch {
+    return false;
+  }
+}
+
+async function getApprovedBundleSid(countryCode: string): Promise<string | undefined> {
+  if (!client) return undefined;
+  try {
+    const bundles = await client.numbers.v2.regulatoryCompliance.bundles.list({
+      status: "twilio-approved",
+      isoCountry: countryCode,
+      limit: 10,
+    });
+    if (bundles.length > 0) {
+      console.log(`[Twilio] Bundle approuvé trouvé pour ${countryCode}: ${bundles[0].sid} (${bundles[0].friendlyName})`);
+      return bundles[0].sid;
+    }
+    // Fallback : chercher aussi les bundles "pending-review" au cas où l'API filtre différemment
+    const allBundles = await client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 });
+    const approved = allBundles.find(b =>
+      b.status === "twilio-approved" &&
+      (b.isoCountry === countryCode || b.isoCountry === undefined)
+    );
+    return approved?.sid;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function purchasePhoneNumber(
   phoneNumber: string,
   friendlyName?: string,
@@ -209,14 +244,24 @@ export async function purchasePhoneNumber(
   }
 
   try {
-    const addressSid = process.env.TWILIO_ADDRESS_SID || await getTwilioAddressSid();
+    const isFranceNumber = phoneNumber.startsWith("+33");
+    const [addressSid, bundleSid] = await Promise.all([
+      process.env.TWILIO_ADDRESS_SID ? Promise.resolve(process.env.TWILIO_ADDRESS_SID) : getTwilioAddressSid(),
+      isFranceNumber ? getApprovedBundleSid("FR") : Promise.resolve(undefined),
+    ]);
+
     const params: any = {
       phoneNumber,
       friendlyName: friendlyName || `GwadaSMS-${new Date().toISOString().split('T')[0]}`,
     };
-    if (addressSid) {
-      params.addressSid = addressSid;
+    if (addressSid) params.addressSid = addressSid;
+    if (bundleSid) {
+      params.bundleSid = bundleSid;
+      console.log(`[Twilio] Achat France avec bundle ${bundleSid}`);
+    } else if (isFranceNumber) {
+      console.warn(`[Twilio] Aucun bundle approuvé pour FR — l'achat risque d'échouer (bundle en attente de validation Twilio).`);
     }
+
     const purchased = await client.incomingPhoneNumbers.create(params);
 
     const smsCapable = purchased.capabilities?.sms ?? false;

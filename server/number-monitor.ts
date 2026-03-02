@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 import { sendUsageAlert, sendNewNumberNotification, isEmailConfigured } from "./email-service";
-import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber } from "./twilio-service";
+import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber, checkFranceBundleApproved } from "./twilio-service";
 import type { Country } from "@shared/schema";
 
 const USAGE_ALERT_THRESHOLD = 100;
@@ -88,8 +88,15 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
       if (country === "france") {
         const bundleBlocked = await storage.getSetting("france_bundle_required");
         if (bundleBlocked === "true") {
-          console.log(`[Monitor] Achat France suspendu — dossier réglementaire (bundle ARCEP) requis sur Twilio.`);
-          continue;
+          // Vérifie si le bundle a été approuvé depuis la dernière tentative
+          const isApproved = await checkFranceBundleApproved();
+          if (!isApproved) {
+            console.log(`[Monitor] Achat France suspendu — bundle ARCEP en attente d'approbation Twilio.`);
+            continue;
+          }
+          // Bundle approuvé — on réactive l'achat automatiquement
+          await storage.setSetting("france_bundle_required", "false");
+          console.log(`[Monitor] Bundle ARCEP approuvé ! Reprise de l'achat automatique France.`);
         }
       }
 
