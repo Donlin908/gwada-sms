@@ -57,6 +57,12 @@ interface AdminNumber {
   usageCount: number;
   isAvailable: boolean;
   isValid: boolean;
+  twilioActive: boolean;
+  lastTwilioCheck: string | null;
+  maxUsageDaily: number;
+  maxUsageWeekly: number;
+  maxUsageMonthly: number;
+  availabilityByPlan: { daily: boolean; weekly: boolean; monthly: boolean };
   createdAt: string;
 }
 
@@ -722,51 +728,118 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Tous les numéros</CardTitle>
           <CardDescription>
-            Liste complète avec statistiques d'utilisation
+            Disponibilité par plan et statut Twilio en temps réel
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {numbersLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-6">
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className="h-12" />
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              {numbers?.map((num) => (
-                <div 
-                  key={num.id} 
-                  className="flex items-center justify-between p-3 rounded-lg border"
-                  data-testid={`row-number-${num.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="font-mono font-medium">{num.number}</div>
-                    <Badge variant="outline">
-                      {num.country === "france" ? "France" : "USA"}
-                    </Badge>
-                    {!num.isValid && (
-                      <Badge variant="destructive">Invalide</Badge>
-                    )}
-                    {!num.isAvailable && (
-                      <Badge variant="secondary">Réservé</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(num.createdAt).toLocaleDateString('fr-FR')}
-                    </div>
-                    <Badge variant={getUsageColor(num.usageCount, stats?.settings.usageAlertThreshold ?? 100)}>
-                      {num.usageCount} utilisations
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-              {numbers?.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Aucun numéro dans le système
-                </div>
-              )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="table-numbers">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-4 py-3 text-left font-medium">Numéro</th>
+                    <th className="px-4 py-3 text-left font-medium">Pays</th>
+                    <th className="px-4 py-3 text-center font-medium">Twilio</th>
+                    <th className="px-4 py-3 text-center font-medium">Statut</th>
+                    <th className="px-4 py-3 text-center font-medium">
+                      <span className="text-blue-600 dark:text-blue-400">24h</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesDaily ?? 20})</span>
+                    </th>
+                    <th className="px-4 py-3 text-center font-medium">
+                      <span className="text-purple-600 dark:text-purple-400">7j</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesWeekly ?? 10})</span>
+                    </th>
+                    <th className="px-4 py-3 text-center font-medium">
+                      <span className="text-orange-600 dark:text-orange-400">30j</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesMonthly ?? 5})</span>
+                    </th>
+                    <th className="px-4 py-3 text-center font-medium">Utilisations</th>
+                    <th className="px-4 py-3 text-left font-medium">Dernière vérif.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {numbers?.map((num) => (
+                    <tr
+                      key={num.id}
+                      className="border-b hover:bg-muted/30 transition-colors"
+                      data-testid={`row-number-${num.id}`}
+                    >
+                      <td className="px-4 py-3 font-mono font-medium">{num.number}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="text-xs">
+                          {num.country === "france" ? "🇫🇷 France" : "🇺🇸 USA"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {num.twilioActive ? (
+                          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
+                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse inline-block" />
+                            Actif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
+                            <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+                            Inactif
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {!num.isValid ? (
+                          <Badge variant="destructive" className="text-xs">Invalide</Badge>
+                        ) : !num.isAvailable ? (
+                          <Badge variant="secondary" className="text-xs">Réservé</Badge>
+                        ) : (
+                          <Badge className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30 hover:bg-green-500/10">Libre</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {num.availabilityByPlan.daily ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold text-base">✓</span>
+                        ) : (
+                          <span className="text-red-500 font-semibold text-base">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {num.availabilityByPlan.weekly ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold text-base">✓</span>
+                        ) : (
+                          <span className="text-red-500 font-semibold text-base">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {num.availabilityByPlan.monthly ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold text-base">✓</span>
+                        ) : (
+                          <span className="text-red-500 font-semibold text-base">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge variant={getUsageColor(num.usageCount, stats?.settings.usageAlertThreshold ?? 100)} className="text-xs">
+                          {num.usageCount}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {num.lastTwilioCheck
+                          ? new Date(num.lastTwilioCheck).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+                          : "Jamais"}
+                      </td>
+                    </tr>
+                  ))}
+                  {numbers?.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                        Aucun numéro dans le système
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

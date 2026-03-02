@@ -707,7 +707,15 @@ export async function registerRoutes(
 
   app.get("/api/admin/numbers", async (req, res) => {
     try {
-      const numbers = await storage.getAllPhoneNumbers();
+      const [numbers, maxDailyStr, maxWeeklyStr, maxMonthlyStr] = await Promise.all([
+        storage.getAllPhoneNumbers(),
+        storage.getSetting("max_usages_daily"),
+        storage.getSetting("max_usages_weekly"),
+        storage.getSetting("max_usages_monthly"),
+      ]);
+      const maxUsageDaily = parseInt(maxDailyStr || "20");
+      const maxUsageWeekly = parseInt(maxWeeklyStr || "10");
+      const maxUsageMonthly = parseInt(maxMonthlyStr || "5");
       res.json(numbers.map(n => ({
         id: n.id,
         number: n.number,
@@ -715,6 +723,16 @@ export async function registerRoutes(
         usageCount: n.usageCount,
         isAvailable: n.isAvailable,
         isValid: n.isValid,
+        twilioActive: n.isValid,
+        lastTwilioCheck: n.lastTwilioCheck?.toISOString() || null,
+        maxUsageDaily,
+        maxUsageWeekly,
+        maxUsageMonthly,
+        availabilityByPlan: {
+          daily: n.isAvailable && n.isValid && n.usageCount < maxUsageDaily,
+          weekly: n.isAvailable && n.isValid && n.usageCount < maxUsageWeekly,
+          monthly: n.isAvailable && n.isValid && n.usageCount < maxUsageMonthly,
+        },
         createdAt: n.createdAt.toISOString(),
       })));
     } catch (error) {
