@@ -164,15 +164,17 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
     // Filtres basés sur les colonnes visibles dans la console Twilio :
     // Capabilities (Voice/SMS/MMS/Fax) + Address Requirement + Type
     const searchParams: Record<string, any> = {
-      smsEnabled: true,   // Colonne SMS — obligatoire
-      mmsEnabled: true,   // Colonne MMS — obligatoire pour compatibilité maximale
+      smsEnabled: true,   // Colonne SMS — obligatoire pour les deux pays
       limit: limit * 3,   // On récupère plus pour compenser les filtres stricts
     };
 
     if (countryCode === "US") {
-      // USA : exclure les numéros qui nécessitent une adresse (colonne "Address Requirement: None")
+      // USA : MMS supporté + exclure les numéros qui nécessitent une adresse (Address Requirement: None)
+      searchParams.mmsEnabled = true;
       searchParams.excludeAllAddressRequired = true;
     }
+    // France : les numéros locaux FR ne supportent PAS MMS (0 résultat avec mmsEnabled:true)
+    // Tous les numéros FR exigent une adresse locale (AddrReq: local) — fournie via TWILIO_ADDRESS_SID + bundle ARCEP
 
     const rawNumbers = await client.availablePhoneNumbers(countryCode).local
       .list(searchParams);
@@ -197,7 +199,8 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       return rawNumbers.slice(0, limit).map((num: any) => mapNumber(num, false));
     }
 
-    return results.map((num: any) => mapNumber(num, true));
+    const mmsSupported = countryCode === "US";
+    return results.map((num: any) => mapNumber(num, mmsSupported));
   } catch (error) {
     console.error("Error searching available numbers:", error);
     return [];
