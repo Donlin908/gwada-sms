@@ -99,7 +99,11 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
       let bundleErrorEncountered = false;
       
       for (const num of available.slice(0, needed)) {
-        const purchased = await purchasePhoneNumber(num.phoneNumber);
+        if (!num.smsCapable) {
+          console.warn(`[Monitor] Numéro ${num.phoneNumber} ignoré — non compatible SMS.`);
+          continue;
+        }
+        const purchased = await purchasePhoneNumber(num.phoneNumber, undefined, num.smsCapable);
         
         if (purchased) {
           await storage.createPhoneNumber({

@@ -757,13 +757,14 @@ export async function registerRoutes(
       const { country } = parseResult.data;
       
       const countryCode = country === "france" ? "FR" : "US";
-      const available = await twilioService.searchAvailableNumbers(countryCode, 1);
-      
-      if (available.length === 0) {
-        return res.status(404).json({ error: "No numbers available for purchase in this region" });
+      const available = await twilioService.searchAvailableNumbers(countryCode, 5);
+      const smsCandidate = available.find(n => n.smsCapable);
+
+      if (!smsCandidate) {
+        return res.status(404).json({ error: "Aucun numéro compatible SMS disponible dans cette région" });
       }
       
-      const purchased = await twilioService.purchasePhoneNumber(available[0].phoneNumber);
+      const purchased = await twilioService.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
       if (!purchased) {
         return res.status(500).json({ error: "Failed to purchase number" });
       }

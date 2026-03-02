@@ -147,6 +147,7 @@ export interface AvailableNumberToPurchase {
   locality: string;
   region: string;
   isoCountry: string;
+  smsCapable: boolean;
 }
 
 export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: number = 5): Promise<AvailableNumberToPurchase[]> {
@@ -168,6 +169,7 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       locality: num.locality || "",
       region: num.region || "",
       isoCountry: num.isoCountry,
+      smsCapable: num.capabilities?.sms === true,
     }));
   } catch (error) {
     console.error("Error searching available numbers:", error);
@@ -193,10 +195,16 @@ async function getTwilioAddressSid(): Promise<string | undefined> {
 
 export async function purchasePhoneNumber(
   phoneNumber: string,
-  friendlyName?: string
+  friendlyName?: string,
+  smsCapable?: boolean
 ): Promise<PurchasedNumber | null> {
   if (!client) {
     console.log("Twilio client not available");
+    return null;
+  }
+
+  if (smsCapable === false) {
+    console.warn(`[Twilio] Achat annulé — ${phoneNumber} n'est pas compatible SMS.`);
     return null;
   }
 
