@@ -51,6 +51,17 @@ interface AdminStats {
   };
 }
 
+interface AdminUser {
+  id: string;
+  username: string | null;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  email_verified: boolean;
+  auth_provider: string | null;
+  created_at: string;
+}
+
 interface AdminNumber {
   id: string;
   number: string;
@@ -396,6 +407,11 @@ export default function AdminPage() {
   
   const { data: numbers, isLoading: numbersLoading } = useQuery<AdminNumber[]>({
     queryKey: ["/api/admin/numbers"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: usersData, isLoading: usersLoading } = useQuery<{ users: AdminUser[] }>({
+    queryKey: ["/api/admin/users"],
     enabled: isAuthenticated,
   });
   
@@ -858,6 +874,78 @@ export default function AdminPage() {
                     <tr>
                       <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                         Aucun numéro dans le système
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tableau des comptes utilisateurs */}
+      <Card data-testid="card-users">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Comptes utilisateurs
+          </CardTitle>
+          <CardDescription>
+            {usersData?.users?.length ?? 0} compte(s) enregistré(s) sur le site
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {usersLoading ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm" data-testid="table-users">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Nom complet</th>
+                    <th className="px-4 py-3 text-left font-medium">Nom d'utilisateur</th>
+                    <th className="px-4 py-3 text-left font-medium">Email</th>
+                    <th className="px-4 py-3 text-left font-medium">Méthode</th>
+                    <th className="px-4 py-3 text-left font-medium">Email vérifié</th>
+                    <th className="px-4 py-3 text-left font-medium">Date d'inscription</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {usersData?.users?.map((user) => (
+                    <tr key={user.id} className="hover:bg-muted/30 transition-colors" data-testid={`row-user-${user.id}`}>
+                      <td className="px-4 py-3 font-medium">
+                        {user.first_name || user.last_name
+                          ? `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim()
+                          : <span className="text-muted-foreground italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {user.username ?? <span className="italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3">{user.email}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {user.auth_provider === "google" ? "Google" : "Email"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {user.email_verified ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>
+                        ) : (
+                          <span className="text-red-500 font-semibold">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(user.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                      </td>
+                    </tr>
+                  ))}
+                  {(!usersData?.users || usersData.users.length === 0) && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        Aucun compte enregistré
                       </td>
                     </tr>
                   )}

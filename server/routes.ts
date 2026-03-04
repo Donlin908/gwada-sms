@@ -810,6 +810,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, username, email, first_name, last_name, email_verified, auth_provider, created_at
+        FROM users
+        ORDER BY created_at DESC
+      `);
+      res.json({ users: result.rows });
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   numberMonitor.startMonitoring(5 * 60 * 1000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
