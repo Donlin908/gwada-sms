@@ -22,7 +22,8 @@ import {
   LogOut,
   TrendingUp,
   DollarSign,
-  Users
+  Users,
+  Send
 } from "lucide-react";
 
 interface AdminStats {
@@ -414,6 +415,17 @@ export default function AdminPage() {
     queryKey: ["/api/admin/users"],
     enabled: isAuthenticated,
   });
+
+  const { data: telegramStatus } = useQuery<{ configured: boolean; chatId: string | null; botToken: string | null }>({
+    queryKey: ["/api/admin/telegram/status"],
+    enabled: isAuthenticated,
+  });
+
+  const testTelegramMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/telegram/test"),
+    onSuccess: () => toast({ title: "✅ Message Telegram envoyé", description: "Vérifiez votre conversation Telegram." }),
+    onError: () => toast({ title: "❌ Échec Telegram", description: "Vérifiez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID.", variant: "destructive" }),
+  });
   
   useEffect(() => {
     if (stats?.settings) {
@@ -700,6 +712,7 @@ export default function AdminPage() {
           <CardContent className="space-y-4">
             <ServiceStatus name="Twilio" configured={stats?.services.twilioConfigured ?? false} />
             <ServiceStatus name="Email" configured={stats?.services.emailConfigured ?? false} />
+            <ServiceStatus name="Telegram" configured={telegramStatus?.configured ?? false} />
             
             <div className="pt-4 space-y-2">
               <Label>Achat manuel de numéros</Label>
@@ -732,6 +745,36 @@ export default function AdminPage() {
               )}
             </div>
             
+            {telegramStatus && (
+              <div className="pt-2 space-y-2 border-t">
+                <Label className="flex items-center gap-2">
+                  <Send className="h-3.5 w-3.5" />
+                  Surveillance Telegram
+                </Label>
+                {telegramStatus.configured ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Chat ID : <code className="bg-muted px-1 rounded">{telegramStatus.chatId}</code></p>
+                    <p className="text-xs text-muted-foreground">Token : <code className="bg-muted px-1 rounded">{telegramStatus.botToken}</code></p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Non configuré — ajoutez <code className="bg-muted px-1 rounded">TELEGRAM_BOT_TOKEN</code> et <code className="bg-muted px-1 rounded">TELEGRAM_CHAT_ID</code> dans les secrets.
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testTelegramMutation.mutate()}
+                  disabled={testTelegramMutation.isPending || !telegramStatus.configured}
+                  className="w-full"
+                  data-testid="button-test-telegram"
+                >
+                  <Send className="mr-2 h-3.5 w-3.5" />
+                  {testTelegramMutation.isPending ? "Envoi..." : "Envoyer message de test"}
+                </Button>
+              </div>
+            )}
+
             <div className="pt-4 space-y-2 border-t">
               <Label>Synchronisation Twilio</Label>
               <p className="text-xs text-muted-foreground">

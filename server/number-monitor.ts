@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { sendUsageAlert, sendNewNumberNotification, isEmailConfigured } from "./email-service";
 import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber, checkFranceBundleApproved } from "./twilio-service";
+import * as telegram from "./telegram-service";
 import type { Country } from "@shared/schema";
 
 const USAGE_ALERT_THRESHOLD = 100;
@@ -46,6 +47,8 @@ export async function checkAndAlertHighUsage(): Promise<number> {
       usageCount: number.usageCount,
       threshold,
     });
+
+    await telegram.notifyHighUsage(number.number, number.country, number.usageCount, threshold);
     
     await storage.markAlertSent(alert.id);
     alertsSent++;
@@ -123,11 +126,13 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           
           purchasedNumbers.push(purchased.phoneNumber);
           
+          const reason = `Nombre de numéros disponibles insuffisant (${validAvailableNumbers.length}/${minPerCountry})`;
           await sendNewNumberNotification({
             phoneNumber: purchased.phoneNumber,
             country,
-            reason: `Nombre de numéros disponibles insuffisant (${validAvailableNumbers.length}/${minPerCountry})`,
+            reason,
           });
+          await telegram.notifyNumberPurchased(purchased.phoneNumber, country, reason);
         } else if (country === "france") {
           bundleErrorEncountered = true;
           break;
@@ -190,6 +195,7 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
         });
         invalidated++;
         console.log(`Invalidated number no longer on Twilio: ${dbNum.number}`);
+        await telegram.notifyNumberInvalidated(dbNum.number, dbNum.country);
       }
     }
     

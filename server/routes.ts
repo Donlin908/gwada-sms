@@ -5,6 +5,7 @@ import { type Country, pricingPlans, phoneNumbers } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
+import * as telegram from "./telegram-service";
 import { z } from "zod";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { sql, eq } from "drizzle-orm";
@@ -82,6 +83,7 @@ export async function registerRoutes(
       });
 
       const emailSent = await sendVerificationEmail(email, verificationToken);
+      telegram.notifyNewUser(email, username ?? null, "local").catch(() => {});
 
       req.session.regenerate((err) => {
         if (err) {
@@ -404,6 +406,8 @@ export async function registerRoutes(
               content: msg.body,
               receivedAt: msg.dateSent,
             });
+            // Alerte Telegram pour chaque nouveau SMS reçu
+            telegram.notifySmsReceived(phoneNumber.number, msg.from, msg.body, phoneNumber.country).catch(() => {});
           }
         }
       }
@@ -824,6 +828,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/telegram/status", async (req, res) => {
+    res.json({
+      configured: telegram.isConfigured(),
+      botToken: process.env.TELEGRAM_BOT_TOKEN ? "***" + process.env.TELEGRAM_BOT_TOKEN.slice(-4) : null,
+      chatId: process.env.TELEGRAM_CHAT_ID || null,
+    });
+  });
+
+  app.post("/api/admin/telegram/test", async (req, res) => {
+    const ok = await telegram.testConnection();
+    if (ok) {
+      res.json({ success: true, message: "Message de test envoyé sur Telegram ✅" });
+    } else {
+      res.status(500).json({ success: false, message: "Échec — vérifiez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID" });
+    }
+  });
+
   numberMonitor.startMonitoring(5 * 60 * 1000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
@@ -982,6 +1003,22 @@ export async function registerRoutes(
         usedAt: now,
         purpose: `Paid reservation with ${plan.name} plan`,
       });
+
+      // Notification Telegram paiement
+      const phoneNum = await storage.getPhoneNumber(phoneNumberId);
+      if (phoneNum) {
+        const userEmail = req.session.userId
+          ? (await storage.getUser(req.session.userId))?.email
+          : undefined;
+        telegram.notifyNewPayment({
+          amount: plan.price * 100,
+          currency: "eur",
+          planName: plan.name,
+          phoneNumber: phoneNum.number,
+          country: phoneNum.country,
+          userEmail,
+        }).catch(() => {});
+      }
 
       res.json({
         success: true,
