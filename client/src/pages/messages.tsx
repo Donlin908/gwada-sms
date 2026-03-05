@@ -214,17 +214,17 @@ export default function Messages() {
             <p className="text-sm text-muted-foreground text-center max-w-md">
               Si vous ne recevez pas votre code ou si vous avez un problème avec ce numéro, notre support est disponible 7j/7 sur Telegram.
             </p>
-            <Button 
-              variant="outline" 
-              className="gap-2 border-primary text-primary hover:bg-primary/5"
-              asChild
-              data-testid="button-support-chat"
-            >
-              <a href="https://t.me/GwadasmsBot" target="_blank" rel="noopener noreferrer">
-                Ouvrir le chat de support
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
+          <Button 
+            variant="outline" 
+            className="w-full max-w-sm gap-2 border-[#0088cc] text-[#0088cc] hover:bg-[#0088cc]/10"
+            asChild
+            data-testid="button-support-chat"
+          >
+            <a href="https://t.me/GwadasmsBot" target="_blank" rel="noopener noreferrer">
+              <MessageSquare className="h-4 w-4" />
+              Contacter le support (Telegram)
+            </a>
+          </Button>
           </div>
         </div>
       </main>
