@@ -5,6 +5,7 @@ import { Footer } from "@/components/footer";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { MessageSquare, Phone, Clock, ChevronRight } from "lucide-react";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
 
