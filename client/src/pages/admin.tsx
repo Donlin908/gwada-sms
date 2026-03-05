@@ -24,7 +24,8 @@ import {
   TrendingUp,
   DollarSign,
   Users,
-  Send
+  Send,
+  MessageSquare
 } from "lucide-react";
 
 interface AdminStats {
