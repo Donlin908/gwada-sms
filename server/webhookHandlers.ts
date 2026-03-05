@@ -18,11 +18,9 @@ export class WebhookHandlers {
 
     const sync = await getStripeSync();
     try {
-      // processWebhook in stripe-replit-sync might not return the event directly
-      // but it handles the sync. We need to check if we can get the event.
       const event = await sync.processWebhook(payload, signature);
       
-      console.log(`[Webhook] Event received: ${event?.type || 'unknown'}`);
+      console.log(`[Webhook] Event processed: ${event?.type || 'unknown'}`);
 
       if (event && event.type === 'checkout.session.completed') {
         const session = event.data.object;

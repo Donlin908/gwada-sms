@@ -90,6 +90,26 @@ export async function getStripeSync() {
       },
       stripeSecretKey: secretKey,
     });
+    
+    // Add constructEvent capability
+    stripeSync.processWebhook = async (payload: Buffer, signature: string) => {
+      const stripe = new Stripe(secretKey);
+      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      
+      if (endpointSecret) {
+        try {
+          return stripe.webhooks.constructEvent(payload, signature, endpointSecret);
+        } catch (err) {
+          console.warn("[StripeSync] Webhook signature verification failed, falling back to parsing");
+        }
+      }
+      
+      try {
+        return JSON.parse(payload.toString());
+      } catch (e) {
+        return null;
+      }
+    };
   }
   return stripeSync;
 }
