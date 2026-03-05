@@ -871,6 +871,28 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/test-sms", async (req, res) => {
+    try {
+      const { phoneNumberId, body, from } = req.body;
+      const [msg] = await db.insert(smsMessages).values({
+        phoneNumberId,
+        body: body || "Ceci est un SMS de test pour GWADA SMS. Code: 123456",
+        from: from || "+33600000000",
+        twilioMessageSid: "SM" + Math.random().toString(36).substring(7),
+      }).returning();
+
+      // Notifier Telegram
+      const [num] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
+      if (num) {
+        await telegram.notifySmsReceived(num.number, msg.from, msg.body, num.country);
+      }
+
+      res.json(msg);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   numberMonitor.startMonitoring(5 * 60 * 1000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {

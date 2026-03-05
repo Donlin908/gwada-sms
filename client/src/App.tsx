@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import Home from "@/pages/home";
 import Numbers from "@/pages/numbers";
 import Messages from "@/pages/messages";
+import MessagesList from "@/pages/messages-list";
 import Payment from "@/pages/payment";
 import PaymentSuccess from "@/pages/payment-success";
 import PaymentCancel from "@/pages/payment-cancel";
@@ -25,6 +26,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/numbers" component={Numbers} />
+      <Route path="/messages/list" component={MessagesList} />
       <Route path="/messages/:id" component={Messages} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />

@@ -56,15 +56,26 @@ export function Header() {
             Tarifs
           </a>
           {user && (
-            <Link
-              href="/dashboard"
-              className={`text-sm font-medium transition-colors ${
-                location === "/dashboard" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="link-dashboard"
-            >
-              Mon espace
-            </Link>
+            <>
+              <Link
+                href="/dashboard"
+                className={`text-sm font-medium transition-colors ${
+                  location === "/dashboard" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="link-dashboard"
+              >
+                Mon espace
+              </Link>
+              <Link
+                href="/messages/list"
+                className={`text-sm font-medium transition-colors ${
+                  location.startsWith("/messages") ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="link-messages"
+              >
+                Messages
+              </Link>
+            </>
           )}
         </nav>
 

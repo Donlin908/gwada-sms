@@ -433,6 +433,15 @@ export default function AdminPage() {
     onSuccess: () => toast({ title: "📊 Rapport journalier envoyé", description: "Vérifiez votre Telegram." }),
     onError: () => toast({ title: "❌ Échec du rapport", description: "Vérifiez la configuration Telegram.", variant: "destructive" }),
   });
+
+  const testSmsMutation = useMutation({
+    mutationFn: (phoneNumberId: string) => apiRequest("POST", "/api/admin/test-sms", { phoneNumberId }),
+    onSuccess: () => {
+      toast({ title: "✅ SMS de test généré", description: "Le message a été ajouté et envoyé sur Telegram." });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+    },
+    onError: (err: Error) => toast({ title: "❌ Échec SMS", description: err.message, variant: "destructive" }),
+  });
   
   useEffect(() => {
     if (stats?.settings) {
@@ -861,6 +870,7 @@ export default function AdminPage() {
                     </th>
                     <th className="px-4 py-3 text-center font-medium">Utilisations</th>
                     <th className="px-4 py-3 text-left font-medium">Dernière vérif.</th>
+                    <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -928,6 +938,17 @@ export default function AdminPage() {
                         {num.lastTwilioCheck
                           ? new Date(num.lastTwilioCheck).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
                           : "Jamais"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => testSmsMutation.mutate(num.id)}
+                          disabled={testSmsMutation.isPending}
+                          title="Simuler un SMS reçu"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
