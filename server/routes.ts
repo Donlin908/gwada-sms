@@ -983,10 +983,132 @@ export async function registerRoutes(
     }
   });
 
-  // Webhook Telegram — reçoit les mises à jour du bot (commande /start TOKEN)
+  // ─── Telegram Bot Purchase Session State ────────────────────────────────
+  type TgSession = { step: string; country?: string; phoneNumberId?: string };
+  const tgSessions = new Map<string, TgSession>();
+
+  async function tgSend(chatId: string, text: string, extra: Record<string, any> = {}) {
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true, ...extra }),
+    });
+  }
+
+  async function tgAnswer(callbackQueryId: string, text?: string) {
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text: text || "" }),
+    });
+  }
+
+  // Webhook Telegram — reçoit les mises à jour du bot
   app.post("/api/telegram/webhook", async (req, res) => {
     try {
       const update = req.body;
+
+      // ── Callback query (bouton inline pressé) ─────────────────────────
+      if (update?.callback_query) {
+        const cq = update.callback_query;
+        const chatId = String(cq.message.chat.id);
+        const data: string = cq.data || "";
+        await tgAnswer(cq.id);
+
+        const PLANS = [
+          { label: "⚡ Basique 24h — 2€", priceId: "price_1T4SndCvUJHVsIHmu06e2w6P", planId: "daily" },
+          { label: "📅 Standard 7 jours — 5€", priceId: "price_1T4SndCvUJHVsIHmOlwzLsF6", planId: "weekly" },
+          { label: "🌟 Premium 30 jours — 9€", priceId: "price_1T4SneCvUJHVsIHmPFJd4YeW", planId: "monthly" },
+        ];
+
+        if (data.startsWith("country_")) {
+          const country = data.replace("country_", "") as "france" | "usa";
+          tgSessions.set(chatId, { step: "choose_number", country });
+
+          const available = await storage.getPhoneNumbers(country);
+          const free = available.filter((n: any) => n.isAvailable && n.isValid && !n.activeReservation).slice(0, 6);
+
+          if (free.length === 0) {
+            await tgSend(chatId, "😔 Aucun numéro disponible pour ce pays en ce moment. Réessayez plus tard.");
+            return res.sendStatus(200);
+          }
+
+          const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+          const keyboard = free.map((n: any) => [{ text: `${flag} ${n.number}`, callback_data: `number_${n.id}` }]);
+          await tgSend(chatId, `${flag} Choisissez un numéro disponible :`, {
+            reply_markup: { inline_keyboard: keyboard },
+          });
+        }
+
+        else if (data.startsWith("number_")) {
+          const phoneNumberId = data.replace("number_", "");
+          const session = tgSessions.get(chatId) || { step: "choose_plan" };
+          tgSessions.set(chatId, { ...session, step: "choose_plan", phoneNumberId });
+
+          const keyboard = PLANS.map(p => [{ text: p.label, callback_data: `plan_${p.planId}` }]);
+          await tgSend(chatId, "💳 Choisissez votre plan :", {
+            reply_markup: { inline_keyboard: keyboard },
+          });
+        }
+
+        else if (data.startsWith("plan_")) {
+          const planId = data.replace("plan_", "");
+          const session = tgSessions.get(chatId);
+          if (!session?.phoneNumberId) {
+            await tgSend(chatId, "❌ Session expirée. Recommencez avec /acheter");
+            return res.sendStatus(200);
+          }
+
+          const plan = PLANS.find(p => p.planId === planId);
+          if (!plan) return res.sendStatus(200);
+
+          const phoneNumber = await storage.getPhoneNumber(session.phoneNumberId);
+          if (!phoneNumber) {
+            await tgSend(chatId, "❌ Ce numéro n'est plus disponible. Recommencez avec /acheter");
+            return res.sendStatus(200);
+          }
+
+          const existing = await storage.getActiveReservation(session.phoneNumberId);
+          if (existing) {
+            await tgSend(chatId, "❌ Ce numéro vient d'être réservé. Recommencez avec /acheter pour en choisir un autre.");
+            tgSessions.delete(chatId);
+            return res.sendStatus(200);
+          }
+
+          const stripe = await getUncachableStripeClient();
+          const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+          const userSessionId = `tg_${chatId}`;
+
+          const stripeSession = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{ price: plan.priceId, quantity: 1 }],
+            mode: 'payment',
+            success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&phone_id=${session.phoneNumberId}&plan_id=${planId}&user_session=${userSessionId}`,
+            cancel_url: `${baseUrl}/payment/cancel?phone_id=${session.phoneNumberId}`,
+            metadata: {
+              phoneNumberId: session.phoneNumberId,
+              planId,
+              userSessionId,
+              telegramChatId: chatId,
+            },
+          });
+
+          tgSessions.delete(chatId);
+
+          await tgSend(chatId,
+            `✅ Super ! Voici votre lien de paiement sécurisé pour le plan <b>${plan.label}</b>.\n\n` +
+            `Une fois le paiement effectué, votre numéro sera activé automatiquement et vous recevrez les SMS ici.\n\n` +
+            `⏳ Ce lien expire dans 30 minutes.`, {
+            reply_markup: {
+              inline_keyboard: [[{ text: "💳 Payer maintenant →", url: stripeSession.url! }]],
+            },
+          });
+        }
+
+        return res.sendStatus(200);
+      }
+
+      // ── Message texte ────────────────────────────────────────────────────
       const message = update?.message;
       if (!message || !message.text) return res.sendStatus(200);
 
@@ -1018,15 +1140,7 @@ export async function registerRoutes(
         const [reservation] = await db.select().from(reservations).where(eq(reservations.telegramToken, token));
 
         if (!reservation) {
-          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: "❌ Lien invalide ou expiré. Retournez sur GWADA SMS pour générer un nouveau lien.",
-              parse_mode: "HTML",
-            }),
-          });
+          await tgSend(chatId, "❌ Lien invalide ou expiré. Retournez sur GWADA SMS pour générer un nouveau lien.");
           return res.sendStatus(200);
         }
 
@@ -1038,25 +1152,28 @@ export async function registerRoutes(
         const flag = phoneNum?.country === "france" ? "🇫🇷" : "🇺🇸";
         const num = phoneNum?.number || "";
 
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: `✅ <b>Connexion réussie, ${firstName} !</b>\n\nVous recevrez automatiquement les SMS arrivant sur votre numéro ${flag} <code>${num}</code> directement ici.\n\n📅 Valable jusqu'au ${new Date(reservation.expiresAt).toLocaleDateString("fr-FR")}`,
-            parse_mode: "HTML",
-          }),
-        });
+        await tgSend(chatId,
+          `✅ <b>Connexion réussie, ${firstName} !</b>\n\nVous recevrez automatiquement les SMS arrivant sur votre numéro ${flag} <code>${num}</code> directement ici.\n\n📅 Valable jusqu'au ${new Date(reservation.expiresAt).toLocaleDateString("fr-FR")}`
+        );
 
       } else if (text === "/start") {
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: `👋 Bonjour <b>${firstName}</b> !\n\nJe suis le bot de <b>GWADA SMS</b>.\n\nPour activer les notifications, cliquez sur le bouton <i>« Recevoir sur Telegram »</i> depuis votre page de réception de SMS sur le site.`,
-            parse_mode: "HTML",
-          }),
+        await tgSend(chatId,
+          `👋 Bonjour <b>${firstName}</b> !\n\nJe suis le bot de <b>GWADA SMS</b> — votre service de numéros virtuels.\n\n` +
+          `📱 <b>Que puis-je faire pour vous ?</b>\n` +
+          `• <b>/acheter</b> — Acheter un numéro virtuel directement ici\n` +
+          `• Connectez-vous sur <a href="https://${process.env.REPLIT_DOMAINS?.split(',')[0]}">gwada-sms.com</a> pour activer les notifications SMS\n\n` +
+          `💬 Support disponible 7j/7`
+        );
+
+      } else if (text === "/acheter") {
+        tgSessions.set(chatId, { step: "choose_country" });
+        await tgSend(chatId, "🌍 Choisissez le pays du numéro :", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🇫🇷 France (+33)", callback_data: "country_france" }],
+              [{ text: "🇺🇸 USA (+1)", callback_data: "country_usa" }],
+            ],
+          },
         });
       }
 
@@ -1229,6 +1346,7 @@ export async function registerRoutes(
       const phoneNumberId = metadata.phoneNumberId;
       const planId = metadata.planId;
       const userSessionId = metadata.userSessionId;
+      const telegramChatId = metadata.telegramChatId || null;
 
       if (!phoneNumberId || !planId) {
         return res.status(400).json({ error: "Métadonnées de session incomplètes" });
@@ -1278,6 +1396,34 @@ export async function registerRoutes(
           .where(eq(reservations.id, reservation.id));
         reservation = { ...reservation, userId: req.session.userId };
         console.log(`[ConfirmPayment] Linked reservation ${reservation.id} to user ${req.session.userId}`);
+      }
+
+      // ── Notification Telegram si achat via bot ───────────────────────────
+      if (telegramChatId) {
+        try {
+          const [phoneNum] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
+          if (phoneNum) {
+            const flag = phoneNum.country === "france" ? "🇫🇷" : "🇺🇸";
+            const expiryStr = new Date(reservation.expiresAt).toLocaleDateString("fr-FR", {
+              day: "2-digit", month: "long", year: "numeric",
+            });
+            // Lier le telegramChatId à la réservation pour relayer les futurs SMS
+            await db.update(reservations)
+              .set({ telegramChatId })
+              .where(eq(reservations.id, reservation.id));
+
+            await telegram.sendMessage(
+              telegramChatId,
+              `✅ <b>Paiement confirmé !</b>\n\n` +
+              `Votre numéro ${flag} <code>${phoneNum.number}</code> est maintenant actif.\n\n` +
+              `📅 Valable jusqu'au <b>${expiryStr}</b>\n\n` +
+              `📩 Les SMS reçus sur ce numéro vous seront transmis directement ici.\n\n` +
+              `<i>Vous pouvez utiliser /acheter pour obtenir un autre numéro à tout moment.</i>`
+            );
+          }
+        } catch (tgErr: any) {
+          console.error("[ConfirmPayment] Telegram notification failed:", tgErr.message);
+        }
       }
 
       res.json({
