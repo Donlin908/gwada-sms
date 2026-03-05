@@ -1280,5 +1280,151 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Compensation System ──────────────────────────────────────────────────
+
+  // Admin: mark/unmark a number as problematic
+  app.post("/api/admin/numbers/:id/problematic", async (req, res) => {
+    try {
+      if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+      const { isProblematic } = z.object({ isProblematic: z.boolean() }).parse(req.body);
+      await storage.markNumberProblematic(req.params.id, isProblematic);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Admin: list active basique reservations + compensation status
+  app.get("/api/admin/compensation/basique-reservations", async (req, res) => {
+    try {
+      if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+      const basique = await storage.getActiveBasiqueReservations();
+      const problematic = await storage.getProblematicNumbers();
+      const problematicIds = new Set(problematic.map((n) => n.id));
+
+      const result = await Promise.all(basique.map(async (r) => {
+        const tokens = await storage.getCompensationTokensByReservation(r.id);
+        const activeToken = tokens.find((t) => !t.usedAt);
+        return {
+          reservationId: r.id,
+          phoneNumber: r.phoneNumber?.number ?? "—",
+          phoneNumberId: r.phoneNumber?.id ?? null,
+          country: r.phoneNumber?.country ?? "france",
+          isProblematic: r.phoneNumber ? problematicIds.has(r.phoneNumber.id) : false,
+          userEmail: r.user?.email ?? null,
+          expiresAt: r.expiresAt.toISOString(),
+          hasActiveCompensation: !!activeToken,
+          compensationLink: activeToken ? `${req.protocol}://${req.get("host")}/compensation/${activeToken.token}` : null,
+        };
+      }));
+      res.json({ reservations: result, problematicCount: problematic.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Admin: generate a compensation link for a reservation
+  app.post("/api/admin/compensation/generate", async (req, res) => {
+    try {
+      if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+      const { reservationId, reason } = z.object({ reservationId: z.string(), reason: z.string().optional() }).parse(req.body);
+
+      const basique = await storage.getActiveBasiqueReservations();
+      const reservation = basique.find((r) => r.id === reservationId);
+      if (!reservation) return res.status(404).json({ error: "Réservation non trouvée ou non éligible" });
+
+      const token = crypto.randomBytes(20).toString("hex");
+      const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h
+      const country = (reservation.phoneNumber?.country ?? "france") as "france" | "usa";
+
+      const comp = await storage.createCompensationToken({
+        token,
+        reservationId,
+        planId: "daily",
+        country,
+        reason: reason || "Problème de réception SMS",
+        expiresAt,
+      });
+
+      const link = `${req.protocol}://${req.get("host")}/compensation/${token}`;
+      res.json({ success: true, link, token: comp.token, expiresAt: expiresAt.toISOString() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Public: get compensation token info
+  app.get("/api/compensation/:token", async (req, res) => {
+    try {
+      const comp = await storage.getCompensationToken(req.params.token);
+      if (!comp) return res.status(404).json({ error: "Lien invalide ou expiré" });
+      if (comp.usedAt) return res.status(410).json({ error: "Ce lien a déjà été utilisé" });
+      if (new Date(comp.expiresAt) < new Date()) return res.status(410).json({ error: "Ce lien a expiré" });
+
+      // Get available numbers for same country
+      const available = await storage.getPhoneNumbers(comp.country as "france" | "usa");
+      res.json({
+        token: comp.token,
+        country: comp.country,
+        planId: comp.planId,
+        reason: comp.reason,
+        expiresAt: comp.expiresAt.toISOString(),
+        availableNumbers: available.map((n) => ({ id: n.id, number: n.number, country: n.country })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Public: claim compensation — select a new number
+  app.post("/api/compensation/:token/claim", async (req, res) => {
+    try {
+      const comp = await storage.getCompensationToken(req.params.token);
+      if (!comp) return res.status(404).json({ error: "Lien invalide ou expiré" });
+      if (comp.usedAt) return res.status(410).json({ error: "Ce lien a déjà été utilisé" });
+      if (new Date(comp.expiresAt) < new Date()) return res.status(410).json({ error: "Ce lien a expiré" });
+
+      const { phoneNumberId } = z.object({ phoneNumberId: z.string() }).parse(req.body);
+
+      const phoneNumber = await storage.getPhoneNumber(phoneNumberId);
+      if (!phoneNumber) return res.status(404).json({ error: "Numéro non trouvé" });
+      if (!phoneNumber.isAvailable || !phoneNumber.isValid) return res.status(400).json({ error: "Ce numéro n'est plus disponible" });
+
+      // Get original reservation details
+      const [originalReservation] = await db.select().from(reservations).where(eq(reservations.id, comp.reservationId)).limit(1);
+      const userId = originalReservation?.userId ?? null;
+
+      const now = new Date();
+      const plan = pricingPlans.find((p) => p.id === comp.planId) || pricingPlans[0];
+      const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+
+      const newReservation = await storage.createReservation({
+        phoneNumberId,
+        userId: userId || null,
+        planId: comp.planId,
+        sessionId: `compensation-${comp.token}`,
+        startsAt: now,
+        expiresAt,
+        isActive: true,
+      });
+
+      await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
+      await storage.claimCompensationToken(comp.token, newReservation.id);
+
+      res.json({
+        success: true,
+        reservation: {
+          id: newReservation.id,
+          phoneNumber: phoneNumber.number,
+          phoneNumberId,
+          expiresAt: expiresAt.toISOString(),
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
   return httpServer;
 }

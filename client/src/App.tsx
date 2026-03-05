@@ -21,6 +21,7 @@ import PolitiqueConfidentialite from "@/pages/politique-confidentialite";
 import CGU from "@/pages/cgu";
 import Contact from "@/pages/contact";
 import Maintenance from "@/pages/maintenance";
+import Compensation from "@/pages/compensation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/politique-confidentialite" component={PolitiqueConfidentialite} />
       <Route path="/cgu" component={CGU} />
       <Route path="/contact" component={Contact} />
+      <Route path="/compensation/:token" component={Compensation} />
       <Route component={NotFound} />
     </Switch>
   );

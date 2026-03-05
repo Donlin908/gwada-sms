@@ -25,7 +25,10 @@ import {
   DollarSign,
   Users,
   Send,
-  MessageSquare
+  MessageSquare,
+  Gift,
+  Copy,
+  Link2
 } from "lucide-react";
 
 interface AdminStats {
@@ -444,6 +447,48 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     },
     onError: (err: Error) => toast({ title: "❌ Échec SMS", description: err.message, variant: "destructive" }),
+  });
+
+  const { data: basiqueData, isLoading: basiqueLoading, refetch: refetchBasique } = useQuery<{
+    reservations: {
+      reservationId: string;
+      phoneNumber: string;
+      phoneNumberId: string | null;
+      country: string;
+      isProblematic: boolean;
+      userEmail: string | null;
+      expiresAt: string;
+      hasActiveCompensation: boolean;
+      compensationLink: string | null;
+    }[];
+    problematicCount: number;
+  }>({
+    queryKey: ["/api/admin/compensation/basique-reservations"],
+    enabled: isAuthenticated,
+  });
+
+  const [generatedLink, setGeneratedLink] = useState<{ link: string; reservationId: string } | null>(null);
+  const [compensationReason, setCompensationReason] = useState("Problème de réception SMS");
+
+  const markProblematicMutation = useMutation({
+    mutationFn: ({ phoneNumberId, isProblematic }: { phoneNumberId: string; isProblematic: boolean }) =>
+      apiRequest("POST", `/api/admin/numbers/${phoneNumberId}/problematic`, { isProblematic }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
+      toast({ title: "Statut mis à jour" });
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const generateCompensationMutation = useMutation({
+    mutationFn: ({ reservationId, reason }: { reservationId: string; reason: string }) =>
+      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }),
+    onSuccess: (data: { link: string; token: string }) => {
+      setGeneratedLink({ link: data.link, reservationId: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
+      toast({ title: "✅ Lien généré", description: "Copiez et partagez le lien avec le client." });
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
   
   useEffect(() => {
@@ -985,6 +1030,160 @@ export default function AdminPage() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Système de compensation Plan Basique */}
+      <Card data-testid="card-compensation">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-primary" />
+            Compensation Plan Basique (2€)
+          </CardTitle>
+          <CardDescription>
+            Gérez les problèmes de réception SMS sur le plan basique. Signalez les numéros défaillants et générez des liens de remplacement.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {basiqueData && basiqueData.problematicCount >= 3 && (
+            <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-destructive">Alerte : {basiqueData.problematicCount} numéros signalés défaillants</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Le seuil de 3 numéros problématiques a été atteint. Considérez d'envoyer des compensations aux clients affectés.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Motif (inclus dans le lien de compensation)</Label>
+            <Input
+              value={compensationReason}
+              onChange={(e) => setCompensationReason(e.target.value)}
+              placeholder="Ex: Problème de réception SMS détecté"
+              data-testid="input-compensation-reason"
+            />
+          </div>
+
+          {generatedLink && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-xs font-medium text-primary flex items-center gap-1">
+                <Link2 className="h-3 w-3" /> Lien de compensation généré
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-background border rounded px-2 py-1 truncate">{generatedLink.link}</code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { navigator.clipboard.writeText(generatedLink.link); toast({ title: "Lien copié !" }); }}
+                  data-testid="button-copy-link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {basiqueLoading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+            </div>
+          ) : !basiqueData?.reservations?.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Gift className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Aucune réservation active sur le plan basique</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm" data-testid="table-basique-reservations">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Numéro</th>
+                    <th className="px-3 py-2 text-left font-medium">Client</th>
+                    <th className="px-3 py-2 text-left font-medium">Expire le</th>
+                    <th className="px-3 py-2 text-left font-medium">Statut</th>
+                    <th className="px-3 py-2 text-left font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {basiqueData.reservations.map((r) => (
+                    <tr key={r.reservationId} className={`transition-colors ${r.isProblematic ? "bg-destructive/5" : "hover:bg-muted/30"}`} data-testid={`row-basique-${r.reservationId}`}>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-mono">{r.phoneNumber}</span>
+                          <Badge variant="outline" className="text-xs">{r.country === "france" ? "🇫🇷" : "🇺🇸"}</Badge>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs">{r.userEmail ?? "Invité"}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {new Date(r.expiresAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.isProblematic ? (
+                          <Badge variant="destructive" className="text-xs">Défaillant</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Normal</Badge>
+                        )}
+                        {r.hasActiveCompensation && (
+                          <Badge className="text-xs ml-1">Comp. active</Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {r.phoneNumberId && (
+                            <Button
+                              size="sm"
+                              variant={r.isProblematic ? "default" : "outline"}
+                              className={`text-xs h-7 ${r.isProblematic ? "bg-green-600 hover:bg-green-700" : "border-destructive text-destructive hover:bg-destructive/10"}`}
+                              onClick={() => markProblematicMutation.mutate({ phoneNumberId: r.phoneNumberId!, isProblematic: !r.isProblematic })}
+                              disabled={markProblematicMutation.isPending}
+                              data-testid={`button-toggle-problematic-${r.reservationId}`}
+                            >
+                              {r.isProblematic ? "✓ Résolu" : "Signaler"}
+                            </Button>
+                          )}
+                          {!r.hasActiveCompensation ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7"
+                              onClick={() => generateCompensationMutation.mutate({ reservationId: r.reservationId, reason: compensationReason })}
+                              disabled={generateCompensationMutation.isPending}
+                              data-testid={`button-generate-comp-${r.reservationId}`}
+                            >
+                              <Gift className="h-3 w-3 mr-1" />
+                              Générer lien
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7"
+                              onClick={() => { navigator.clipboard.writeText(r.compensationLink!); toast({ title: "Lien copié !" }); }}
+                              data-testid={`button-copy-comp-${r.reservationId}`}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copier lien
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => refetchBasique()} data-testid="button-refresh-basique">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Actualiser
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

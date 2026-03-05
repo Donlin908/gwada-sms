@@ -37,6 +37,7 @@ export const phoneNumbers = pgTable("phone_numbers", {
   isAvailable: boolean("is_available").notNull().default(true),
   isValid: boolean("is_valid").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),
+  isProblematic: boolean("is_problematic").notNull().default(false),
   lastValidatedAt: timestamp("last_validated_at"),
   lastTwilioCheck: timestamp("last_twilio_check"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -111,6 +112,21 @@ export const systemSettings = pgTable("system_settings", {
 });
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
+
+export const compensationTokens = pgTable("compensation_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(),
+  reservationId: varchar("reservation_id").notNull().references(() => reservations.id),
+  planId: text("plan_id").notNull(),
+  country: text("country").notNull().$type<Country>(),
+  reason: text("reason"),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  newReservationId: varchar("new_reservation_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type CompensationToken = typeof compensationTokens.$inferSelect;
 
 export const numberAlerts = pgTable("number_alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

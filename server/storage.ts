@@ -14,6 +14,7 @@ import {
   type Country,
   type SystemSetting,
   type NumberAlert,
+  type CompensationToken,
   users,
   phoneNumbers,
   smsMessages,
@@ -21,6 +22,7 @@ import {
   usageHistory,
   systemSettings,
   numberAlerts,
+  compensationTokens,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -64,6 +66,15 @@ export interface IStorage {
   getUnsentAlerts(): Promise<NumberAlert[]>;
   getAllAlerts(): Promise<NumberAlert[]>;
   markAlertSent(alertId: string): Promise<void>;
+
+  markNumberProblematic(phoneNumberId: string, isProblematic: boolean): Promise<void>;
+  getProblematicNumbers(): Promise<PhoneNumber[]>;
+  getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]>;
+  createCompensationToken(data: { token: string; reservationId: string; planId: string; country: Country; reason?: string; expiresAt: Date }): Promise<CompensationToken>;
+  getCompensationToken(token: string): Promise<CompensationToken | undefined>;
+  claimCompensationToken(token: string, newReservationId: string): Promise<void>;
+  getCompensationTokensByReservation(reservationId: string): Promise<CompensationToken[]>;
+  getAllCompensationTokens(): Promise<CompensationToken[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -290,6 +301,58 @@ export class DatabaseStorage implements IStorage {
 
   async markAlertSent(alertId: string): Promise<void> {
     await db.update(numberAlerts).set({ emailSent: true }).where(eq(numberAlerts.id, alertId));
+  }
+
+  async markNumberProblematic(phoneNumberId: string, isProblematic: boolean): Promise<void> {
+    await db.update(phoneNumbers).set({ isProblematic }).where(eq(phoneNumbers.id, phoneNumberId));
+  }
+
+  async getProblematicNumbers(): Promise<PhoneNumber[]> {
+    return db.select().from(phoneNumbers).where(eq(phoneNumbers.isProblematic, true));
+  }
+
+  async getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]> {
+    const now = new Date();
+    const rows = await db
+      .select({
+        reservation: reservations,
+        phoneNumber: phoneNumbers,
+        user: users,
+      })
+      .from(reservations)
+      .leftJoin(phoneNumbers, eq(reservations.phoneNumberId, phoneNumbers.id))
+      .leftJoin(users, eq(reservations.userId, users.id))
+      .where(
+        and(
+          eq(reservations.planId, "daily"),
+          eq(reservations.isActive, true),
+          gt(reservations.expiresAt, now)
+        )
+      )
+      .orderBy(reservations.createdAt);
+    return rows.map((r) => ({ ...r.reservation, phoneNumber: r.phoneNumber, user: r.user }));
+  }
+
+  async createCompensationToken(data: { token: string; reservationId: string; planId: string; country: Country; reason?: string; expiresAt: Date }): Promise<CompensationToken> {
+    const [token] = await db.insert(compensationTokens).values(data).returning();
+    return token;
+  }
+
+  async getCompensationToken(token: string): Promise<CompensationToken | undefined> {
+    const [row] = await db.select().from(compensationTokens).where(eq(compensationTokens.token, token)).limit(1);
+    return row;
+  }
+
+  async claimCompensationToken(token: string, newReservationId: string): Promise<void> {
+    await db.update(compensationTokens).set({ usedAt: new Date(), newReservationId }).where(eq(compensationTokens.token, token));
+  }
+
+  async getCompensationTokensByReservation(reservationId: string): Promise<CompensationToken[]> {
+    return db.select().from(compensationTokens).where(eq(compensationTokens.reservationId, reservationId));
+  }
+
+  async getAllCompensationTokens(): Promise<CompensationToken[]> {
+    return db.select().from(compensationTokens).orderBy(compensationTokens.createdAt);
   }
 }
 

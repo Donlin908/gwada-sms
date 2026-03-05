@@ -6,6 +6,14 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## Recent Changes (2026-03-05)
+
+- **Système de compensation Plan Basique** : Admin peut signaler les numéros défaillants (bouton "Signaler"), alerte automatique quand 3+ numéros problématiques, génération de liens uniques de compensation par client (valides 72h), page `/compensation/:token` pour que le client choisisse un nouveau numéro gratuitement
+- **Rate limiting** : Ajout de `express-rate-limit` sur les routes sensibles (auth: 10 tentatives/15min, admin login: 5/15min, paiement: 10/min)
+- **Mode maintenance** : Toggle admin (Settings > Mode maintenance) pour afficher une page de maintenance à tous les visiteurs sauf /admin; endpoint `/api/status` publié
+- **Page Contact** : `/contact` avec FAQ, email support, horaires — lien ajouté dans le footer
+- **Page Compensation** : `/compensation/:token` publique — sélection de numéro, confirmation, affichage du nouveau numéro attribué
+
 ## Recent Changes
 
 - **2026-02-23:** Added Google OAuth login via Replit Auth (OIDC)
