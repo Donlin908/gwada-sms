@@ -17,62 +17,79 @@ export class WebhookHandlers {
     }
 
     const sync = await getStripeSync();
-    const event = await sync.processWebhook(payload, signature);
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const { phoneNumberId, planId, userSessionId } = session.metadata as any;
-      const plan = pricingPlans.find(p => p.id === planId);
+    try {
+      // processWebhook in stripe-replit-sync might not return the event directly
+      // but it handles the sync. We need to check if we can get the event.
+      const event = await sync.processWebhook(payload, signature);
       
-      if (plan) {
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+      console.log(`[Webhook] Event received: ${event?.type || 'unknown'}`);
 
-        // Trouver l'utilisateur par email
-        const userEmail = session.customer_details?.email;
-        let userId = null;
-        if (userEmail) {
-          const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1);
-          if (user) userId = user.id;
+      if (event && event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const metadata = session.metadata || {};
+        const phoneNumberId = metadata.phoneNumberId;
+        const planId = metadata.planId;
+        const userSessionId = metadata.userSessionId;
+
+        if (!phoneNumberId || !planId) {
+          console.error("[Webhook] Missing metadata in session:", metadata);
+          return;
         }
 
-        console.log(`Creating reservation for user ${userId || 'guest'} on number ${phoneNumberId}`);
+        const plan = pricingPlans.find(p => p.id === planId);
+        if (plan) {
+          const now = new Date();
+          const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
 
-        await storage.createReservation({
-          phoneNumberId,
-          planId,
-          userId,
-          sessionId: userSessionId,
-          startsAt: now,
-          expiresAt,
-          isActive: true,
-        });
+          // Find user by email
+          const userEmail = session.customer_details?.email;
+          let userId = null;
+          if (userEmail) {
+            const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1);
+            if (user) userId = user.id;
+          }
 
-        await storage.recordUsage({
-          phoneNumberId,
-          sessionId: userSessionId,
-          usedAt: now,
-          purpose: `Paid with ${plan.name} plan`,
-        });
-        
-        // Mettre à jour la disponibilité du numéro
-        await db.update(phoneNumbers)
-          .set({ isAvailable: false })
-          .where(eq(phoneNumbers.id, phoneNumberId));
+          console.log(`[Webhook] Creating reservation for user ${userId || 'guest'} on number ${phoneNumberId}`);
 
-        // Notifier Telegram Admin
-        const [num] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
-        if (num) {
-          await telegram.notifyNewPayment({
-            amount: session.amount_total || 0,
-            currency: session.currency || 'eur',
-            planName: plan.name,
-            phoneNumber: num.number,
-            country: num.country,
-            userEmail: userEmail || undefined
-          });
+          const existing = await storage.getActiveReservation(phoneNumberId);
+          if (!existing) {
+            await storage.createReservation({
+              phoneNumberId,
+              planId,
+              userId,
+              sessionId: userSessionId || 'webhook',
+              startsAt: now,
+              expiresAt,
+              isActive: true,
+            });
+
+            await storage.recordUsage({
+              phoneNumberId,
+              sessionId: userSessionId || 'webhook',
+              usedAt: now,
+              purpose: `Paid with ${plan.name} plan`,
+            });
+            
+            await db.update(phoneNumbers)
+              .set({ isAvailable: false })
+              .where(eq(phoneNumbers.id, phoneNumberId));
+
+            const [num] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
+            if (num) {
+              await telegram.notifyNewPayment({
+                amount: session.amount_total || 0,
+                currency: session.currency || 'eur',
+                planName: plan.name,
+                phoneNumber: num.number,
+                country: num.country,
+                userEmail: userEmail || undefined
+              });
+            }
+          }
         }
       }
+    } catch (err: any) {
+      console.error("[Stripe Webhook Error]:", err.message);
     }
   }
 }

@@ -1091,54 +1091,58 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Payment not completed" });
       }
 
-      const existingReservation = await storage.getActiveReservation(phoneNumberId);
-      if (existingReservation) {
-        return res.json({ 
-          success: true, 
-          reservation: existingReservation,
-          message: "Réservation déjà active"
+      // Check if reservation already exists (might be created by webhook)
+      let reservation = await storage.getActiveReservation(phoneNumberId);
+      
+      if (!reservation) {
+        const plan = pricingPlans.find(p => p.id === planId);
+        if (!plan) {
+          return res.status(400).json({ error: "Invalid plan" });
+        }
+
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+
+        // Associate with user if logged in, or by email from session
+        let userId = req.session.userId || null;
+        if (!userId && checkoutSession.customer_details?.email) {
+          const [user] = await db.select().from(users).where(eq(users.email, checkoutSession.customer_details.email)).limit(1);
+          if (user) userId = user.id;
+        }
+
+        reservation = await storage.createReservation({
+          phoneNumberId,
+          userId,
+          planId,
+          sessionId: userSessionId,
+          startsAt: now,
+          expiresAt,
+          isActive: true,
         });
-      }
 
-      const plan = pricingPlans.find(p => p.id === planId);
-      if (!plan) {
-        return res.status(400).json({ error: "Invalid plan" });
-      }
+        await storage.recordUsage({
+          phoneNumberId,
+          sessionId: userSessionId,
+          usedAt: now,
+          purpose: `Paid reservation with ${plan.name} plan (frontend fallback)`,
+        });
 
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+        // Mark number as reserved
+        await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
 
-      const reservation = await storage.createReservation({
-        phoneNumberId,
-        userId: req.session.userId || null,
-        planId,
-        sessionId: userSessionId,
-        startsAt: now,
-        expiresAt,
-        isActive: true,
-      });
-
-      await storage.recordUsage({
-        phoneNumberId,
-        sessionId: userSessionId,
-        usedAt: now,
-        purpose: `Paid reservation with ${plan.name} plan`,
-      });
-
-      // Notification Telegram paiement
-      const phoneNum = await storage.getPhoneNumber(phoneNumberId);
-      if (phoneNum) {
-        const userEmail = req.session.userId
-          ? (await storage.getUser(req.session.userId))?.email
-          : undefined;
-        telegram.notifyNewPayment({
-          amount: plan.price * 100,
-          currency: "eur",
-          planName: plan.name,
-          phoneNumber: phoneNum.number,
-          country: phoneNum.country,
-          userEmail,
-        }).catch(() => {});
+        // Notify Telegram
+        const phoneNum = await storage.getPhoneNumber(phoneNumberId);
+        if (phoneNum) {
+          const userEmail = userId ? (await storage.getUser(userId))?.email : checkoutSession.customer_details?.email;
+          telegram.notifyNewPayment({
+            amount: checkoutSession.amount_total || (plan.price * 100),
+            currency: checkoutSession.currency || "eur",
+            planName: plan.name,
+            phoneNumber: phoneNum.number,
+            country: phoneNum.country,
+            userEmail: userEmail || undefined,
+          }).catch(() => {});
+        }
       }
 
       res.json({
@@ -1150,11 +1154,11 @@ export async function registerRoutes(
           startsAt: reservation.startsAt.toISOString(),
           expiresAt: reservation.expiresAt.toISOString(),
         },
-        message: `Numéro réservé jusqu'au ${expiresAt.toLocaleString('fr-FR')}`,
+        message: `Numéro réservé avec succès`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error confirming payment:", error);
-      res.status(500).json({ error: "Failed to confirm payment" });
+      res.status(500).json({ error: error.message || "Failed to confirm payment" });
     }
   });
 
