@@ -85,6 +85,7 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
     
     if (validAvailableNumbers.length < minPerCountry) {
       const needed = minPerCountry - validAvailableNumbers.length;
+      console.log(`[Monitor] ${country.toUpperCase()} : ${validAvailableNumbers.length}/${minPerCountry} disponibles. Tentative d'achat de 1 numéro.`);
       
       const countryCode = country === "france" ? "FR" : "US";
 
@@ -103,12 +104,12 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
         }
       }
 
-      console.log(`Need to purchase ${needed} numbers for ${country} (current: ${validAvailableNumbers.length})`);
+      console.log(`Need to purchase numbers for ${country} (current: ${validAvailableNumbers.length}, min: ${minPerCountry})`);
       
-      const available = await searchAvailableNumbers(countryCode, needed);
+      const available = await searchAvailableNumbers(countryCode, 1);
       let bundleErrorEncountered = false;
       
-      for (const num of available.slice(0, needed)) {
+      for (const num of available) {
         if (!num.smsCapable) {
           console.warn(`[Monitor] Numéro ${num.phoneNumber} ignoré — non compatible SMS.`);
           continue;
