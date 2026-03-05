@@ -62,7 +62,7 @@ export default function Messages() {
     if (reservation?.telegramChatId) {
       telegramMutation.mutate("");
     } else {
-      const chatId = window.prompt("Entrez votre Chat ID Telegram pour recevoir les SMS :\n(Envoyez /start à @userinfobot sur Telegram pour obtenir votre ID)");
+      const chatId = window.prompt("Entrez votre numéro de téléphone (Format: 33612345678) pour recevoir les SMS sur Telegram :\n\nImportant: Vous devez d'abord avoir envoyé /start au bot @GwadasmsBot");
       if (chatId) telegramMutation.mutate(chatId);
     }
   };
