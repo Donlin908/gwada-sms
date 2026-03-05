@@ -1285,36 +1285,6 @@ export async function registerRoutes(
   numberMonitor.startMonitoring(5 * 60 * 1000);
   startMonthlyReminder();
 
-  app.post("/api/admin/test-monthly-reminder", async (req, res) => {
-    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
-    try {
-      const { sendMonthlyReminder } = await import("./monthly-reminder");
-      await sendMonthlyReminder();
-      res.json({ success: true, message: "Message envoyé" });
-    } catch (err: any) {
-      console.error("[TestReminder] Erreur:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.post("/api/admin/test-telegram", async (req, res) => {
-    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    if (!chatId || !token) return res.status(500).json({ error: "TELEGRAM_CHAT_ID ou TELEGRAM_BOT_TOKEN manquant", chatId: !!chatId, token: !!token });
-    try {
-      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: "✅ Test GWADA SMS — rappel mensuel opérationnel !", parse_mode: "HTML" }),
-      });
-      const data = await r.json() as any;
-      res.json({ ok: data.ok, description: data.description, chatId, tokenConfigured: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   app.get("/api/stripe/publishable-key", async (req, res) => {
     try {
       const publishableKey = await getStripePublishableKey();
