@@ -467,7 +467,7 @@ export default function AdminPage() {
     enabled: isAuthenticated,
   });
 
-  const [generatedLink, setGeneratedLink] = useState<{ link: string; reservationId: string } | null>(null);
+  const [generatedLink, setGeneratedLink] = useState<{ link: string; telegramLink?: string; reservationId: string } | null>(null);
   const [compensationReason, setCompensationReason] = useState("Problème de réception SMS");
 
   const markProblematicMutation = useMutation({
@@ -483,8 +483,8 @@ export default function AdminPage() {
   const generateCompensationMutation = useMutation({
     mutationFn: ({ reservationId, reason }: { reservationId: string; reason: string }) =>
       apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }),
-    onSuccess: (data: { link: string; token: string }) => {
-      setGeneratedLink({ link: data.link, reservationId: "" });
+    onSuccess: (data: { link: string; telegramLink: string; token: string }) => {
+      setGeneratedLink({ link: data.link, telegramLink: data.telegramLink, reservationId: data.token });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
       toast({ title: "✅ Lien généré", description: "Copiez et partagez le lien avec le client." });
     },
@@ -1068,21 +1068,45 @@ export default function AdminPage() {
           </div>
 
           {generatedLink && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
-              <p className="text-xs font-medium text-primary flex items-center gap-1">
-                <Link2 className="h-3 w-3" /> Lien de compensation généré
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-background border rounded px-2 py-1 truncate">{generatedLink.link}</code>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { navigator.clipboard.writeText(generatedLink.link); toast({ title: "Lien copié !" }); }}
-                  data-testid="button-copy-link"
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-primary flex items-center gap-1">
+                  <Link2 className="h-3 w-3" /> Lien Web (Navigateur)
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-background border rounded px-2 py-1 truncate">{generatedLink.link}</code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { navigator.clipboard.writeText(generatedLink.link); toast({ title: "Lien Web copié !" }); }}
+                    data-testid="button-copy-link-web"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
+              {generatedLink.telegramLink && (
+                <div className="space-y-2 pt-2 border-t border-primary/10">
+                  <p className="text-xs font-medium text-primary flex items-center gap-1">
+                    <Send className="h-3 w-3" /> Lien Telegram (Auto-envoi)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-background border rounded px-2 py-1 truncate">{generatedLink.telegramLink}</code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { navigator.clipboard.writeText(generatedLink.telegramLink!); toast({ title: "Lien Telegram copié !" }); }}
+                      data-testid="button-copy-link-tg"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Astuce : Le client n'aura qu'à cliquer sur "Démarrer" dans le bot pour recevoir son lien.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

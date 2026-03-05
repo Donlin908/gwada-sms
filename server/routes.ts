@@ -998,6 +998,23 @@ export async function registerRoutes(
         const token = text.split(" ")[1]?.trim();
         if (!token) return res.sendStatus(200);
 
+        // Check if it's a compensation token
+        const compensation = await storage.getCompensationToken(token);
+        if (compensation) {
+          if (compensation.usedAt) {
+            await telegram.sendMessage(chatId, "⚠️ Ce lien de compensation a déjà été utilisé.");
+            return res.sendStatus(200);
+          }
+          if (new Date(compensation.expiresAt) < new Date()) {
+            await telegram.sendMessage(chatId, "❌ Ce lien de compensation a expiré.");
+            return res.sendStatus(200);
+          }
+
+          const compensationLink = `${req.protocol}://${req.get("host")}/compensation/${token}`;
+          await telegram.sendMessage(chatId, `🎁 *Lien de compensation GWADA SMS*\n\nMotif : ${compensation.reason || "Problème technique"}\n\nCliquez sur le lien ci-dessous pour choisir votre nouveau numéro gratuitement :\n${compensationLink}`);
+          return res.sendStatus(200);
+        }
+
         const [reservation] = await db.select().from(reservations).where(eq(reservations.telegramToken, token));
 
         if (!reservation) {

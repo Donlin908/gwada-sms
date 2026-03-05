@@ -1,17 +1,23 @@
 function getToken(): string { return process.env.TELEGRAM_BOT_TOKEN || ""; }
 function getChatId(): string { return process.env.TELEGRAM_CHAT_ID || ""; }
 
-function isConfigured(): boolean {
-  return !!(getToken() && getChatId());
+export function isConfigured(): boolean {
+  return !!getToken();
 }
 
-async function sendMessage(text: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
+async function sendAdminMessage(text: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
   const token = getToken();
   const chatId = getChatId();
   if (!token || !chatId) {
-    console.log("[Telegram] Non configuré — message ignoré:", text.slice(0, 80));
+    console.log("[Telegram] Admin non configuré — message ignoré:", text.slice(0, 80));
     return false;
   }
+  return sendMessage(chatId, text, parseMode);
+}
+
+export async function sendMessage(chatId: string, text: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
@@ -40,7 +46,7 @@ async function sendMessage(text: string, parseMode: "HTML" | "Markdown" = "HTML"
 export async function notifyNewUser(email: string, name: string | null, method: string): Promise<void> {
   const who = name ? `<b>${name}</b> (${email})` : `<b>${email}</b>`;
   const methodLabel = method === "google" ? "Google" : "Email/Mot de passe";
-  await sendMessage(
+  await sendAdminMessage(
     `👤 <b>Nouveau compte créé</b>\n` +
     `Utilisateur : ${who}\n` +
     `Méthode : ${methodLabel}\n` +
@@ -59,7 +65,7 @@ export async function notifyNewPayment(options: {
   const flag = options.country === "france" ? "🇫🇷" : "🇺🇸";
   const amountStr = (options.amount / 100).toFixed(2) + " " + options.currency.toUpperCase();
   const user = options.userEmail ? `\nClient : ${options.userEmail}` : "";
-  await sendMessage(
+  await sendAdminMessage(
     `💳 <b>Nouveau paiement reçu</b>\n` +
     `Montant : <b>${amountStr}</b>\n` +
     `Plan : ${options.planName}\n` +
@@ -70,7 +76,7 @@ export async function notifyNewPayment(options: {
 
 export async function notifyNumberPurchased(phoneNumber: string, country: string, reason: string): Promise<void> {
   const flag = country === "france" ? "🇫🇷" : "🇺🇸";
-  await sendMessage(
+  await sendAdminMessage(
     `📱 <b>Numéro acheté automatiquement</b>\n` +
     `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
     `Raison : ${reason}\n` +
@@ -80,7 +86,7 @@ export async function notifyNumberPurchased(phoneNumber: string, country: string
 
 export async function notifyHighUsage(phoneNumber: string, country: string, usageCount: number, threshold: number): Promise<void> {
   const flag = country === "france" ? "🇫🇷" : "🇺🇸";
-  await sendMessage(
+  await sendAdminMessage(
     `⚠️ <b>Numéro proche du seuil d'utilisation</b>\n` +
     `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
     `Utilisations : <b>${usageCount}</b> / ${threshold}\n` +
@@ -90,7 +96,7 @@ export async function notifyHighUsage(phoneNumber: string, country: string, usag
 
 export async function notifyNumberInvalidated(phoneNumber: string, country: string): Promise<void> {
   const flag = country === "france" ? "🇫🇷" : "🇺🇸";
-  await sendMessage(
+  await sendAdminMessage(
     `🔴 <b>Numéro invalidé (disparu de Twilio)</b>\n` +
     `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
     `📅 ${new Date().toLocaleString("fr-FR")}`
@@ -101,7 +107,7 @@ export async function notifySmsReceived(phoneNumber: string, from: string, body:
   const flag = country === "france" ? "🇫🇷" : "🇺🇸";
   const preview = body.length > 200 ? body.slice(0, 200) + "…" : body;
   const clientInfo = userEmail ? `\nClient : <code>${userEmail}</code>` : "";
-  await sendMessage(
+  await sendAdminMessage(
     `📩 <b>Nouveau SMS reçu</b>\n` +
     `Sur : ${flag} <code>${phoneNumber}</code>\n` +
     `De : <code>${from}</code>\n` +
@@ -111,7 +117,7 @@ export async function notifySmsReceived(phoneNumber: string, from: string, body:
 }
 
 export async function notifyCriticalError(context: string, error: string): Promise<void> {
-  await sendMessage(
+  await sendAdminMessage(
     `🚨 <b>Erreur critique GWADA SMS</b>\n` +
     `Contexte : ${context}\n` +
     `Erreur : <code>${error.slice(0, 300)}</code>\n` +
@@ -121,7 +127,7 @@ export async function notifyCriticalError(context: string, error: string): Promi
 
 export async function notifyBundleStatusChange(status: string, bundleName: string): Promise<void> {
   const emoji = status === "twilio-approved" ? "✅" : status === "twilio-rejected" ? "❌" : "🔄";
-  await sendMessage(
+  await sendAdminMessage(
     `${emoji} <b>Bundle Twilio France — changement de statut</b>\n` +
     `Bundle : ${bundleName}\n` +
     `Nouveau statut : <b>${status}</b>\n` +
@@ -137,7 +143,7 @@ export async function sendDailyReport(stats: {
   totalReservations: number;
   revenueToday: number;
 }): Promise<void> {
-  await sendMessage(
+  await sendAdminMessage(
     `📊 <b>Rapport journalier GWADA SMS</b>\n` +
     `\n📱 Numéros actifs : <b>${stats.totalNumbers}</b>\n` +
     `  🇫🇷 France : ${stats.franceNumbers}\n` +
@@ -149,7 +155,7 @@ export async function sendDailyReport(stats: {
 }
 
 export async function testConnection(): Promise<boolean> {
-  return sendMessage(
+  return sendAdminMessage(
     `✅ <b>GWADA SMS — Surveillance Telegram active</b>\n` +
     `Vous recevrez ici les alertes en temps réel :\n` +
     `• Nouveaux paiements\n` +
@@ -160,5 +166,3 @@ export async function testConnection(): Promise<boolean> {
     `📅 ${new Date().toLocaleString("fr-FR")}`
   );
 }
-
-export { isConfigured, sendMessage };
