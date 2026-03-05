@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { type Country, pricingPlans, phoneNumbers } from "@shared/schema";
+import { type Country, pricingPlans, phoneNumbers, reservations, users } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
@@ -1078,12 +1078,13 @@ export async function registerRoutes(
 
   app.post("/api/stripe/confirm-payment", async (req, res) => {
     try {
-      const { sessionId, phoneNumberId, planId, userSessionId } = req.body;
+      const { sessionId } = req.body;
 
-      if (!sessionId || !phoneNumberId || !planId || !userSessionId) {
-        return res.status(400).json({ error: "Missing required parameters" });
+      if (!sessionId) {
+        return res.status(400).json({ error: "Session ID requis" });
       }
 
+      // Retrieve full session from Stripe — this is the source of truth
       const stripe = await getUncachableStripeClient();
       const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
 
@@ -1091,17 +1092,60 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Le paiement n'a pas encore été confirmé par Stripe." });
       }
 
+      // Get metadata from Stripe session (reliable, not from URL params)
+      const metadata = checkoutSession.metadata || {};
+      const phoneNumberId = metadata.phoneNumberId;
+      const planId = metadata.planId;
+      const userSessionId = metadata.userSessionId;
+
+      if (!phoneNumberId || !planId) {
+        return res.status(400).json({ error: "Métadonnées de session incomplètes" });
+      }
+
       // Check if reservation already exists (created by webhook)
       let reservation = await storage.getActiveReservation(phoneNumberId);
-      
+
       if (!reservation) {
-        // We do NOT create the reservation here anymore to ensure only Webhook (official Stripe confirmation) 
-        // handles the creation after actual payment validation.
-        return res.json({ 
-          success: false, 
-          status: 'pending_webhook',
-          message: "Paiement reçu. Votre numéro sera activé dans quelques instants (en attente de confirmation finale)." 
+        // Webhook hasn't processed yet — create reservation since Stripe confirmed payment
+        const plan = pricingPlans.find(p => p.id === planId);
+        if (!plan) return res.status(400).json({ error: "Plan invalide" });
+
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+
+        let userId = req.session.userId || null;
+        if (!userId && checkoutSession.customer_details?.email) {
+          const [user] = await db.select().from(users).where(eq(users.email, checkoutSession.customer_details.email)).limit(1);
+          if (user) userId = user.id;
+        }
+
+        reservation = await storage.createReservation({
+          phoneNumberId,
+          userId,
+          planId,
+          sessionId: userSessionId || 'confirm',
+          startsAt: now,
+          expiresAt,
+          isActive: true,
         });
+
+        await storage.recordUsage({
+          phoneNumberId,
+          sessionId: userSessionId || 'confirm',
+          usedAt: now,
+          purpose: `Paid reservation with ${plan.name} plan`,
+        });
+
+        await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
+        console.log(`[ConfirmPayment] Created reservation for user ${userId || 'guest'} on ${phoneNumberId}`);
+
+      } else if (!reservation.userId && req.session.userId) {
+        // Webhook created as guest but user is logged in — link it to them
+        await db.update(reservations)
+          .set({ userId: req.session.userId })
+          .where(eq(reservations.id, reservation.id));
+        reservation = { ...reservation, userId: req.session.userId };
+        console.log(`[ConfirmPayment] Linked reservation ${reservation.id} to user ${req.session.userId}`);
       }
 
       res.json({

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle, MessageSquare, Clock, Loader2 } from "lucide-react";
+import { CheckCircle, MessageSquare, Clock, Loader2, AlertCircle } from "lucide-react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,14 @@ import { apiRequest } from "@/lib/queryClient";
 
 export default function PaymentSuccess() {
   const [location] = useLocation();
-  const [, setNavigate] = useLocation();
   const searchParams = new URLSearchParams(location.split("?")[1] || "");
   
   const sessionId = searchParams.get("session_id");
-  const phoneId = searchParams.get("phone_id");
+  const phoneIdFromUrl = searchParams.get("phone_id");
   const planId = searchParams.get("plan_id");
   const userSession = searchParams.get("user_session");
 
+  const [confirmedPhoneId, setConfirmedPhoneId] = useState<string | null>(phoneIdFromUrl);
   const [reservationData, setReservationData] = useState<{
     expiresAt: string;
     message: string;
@@ -27,16 +27,18 @@ export default function PaymentSuccess() {
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/stripe/confirm-payment", {
         sessionId,
-        phoneNumberId: phoneId,
+        phoneNumberId: phoneIdFromUrl,
         planId,
         userSessionId: userSession,
       });
       return res.json();
     },
     onSuccess: (data) => {
-      if (data.success) {
+      if (data.success && data.reservation) {
+        // Always use the phone ID from the API response
+        setConfirmedPhoneId(data.reservation.phoneNumberId);
         setReservationData({
-          expiresAt: data.reservation?.expiresAt,
+          expiresAt: data.reservation.expiresAt,
           message: data.message,
         });
       }
@@ -44,10 +46,11 @@ export default function PaymentSuccess() {
   });
 
   useEffect(() => {
-    if (sessionId && phoneId && planId && userSession) {
+    // Fire as long as we have a sessionId — server will look up the rest
+    if (sessionId) {
       confirmMutation.mutate();
     }
-  }, [sessionId, phoneId, planId, userSession]);
+  }, []);
 
   const formatExpiryDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -87,7 +90,7 @@ export default function PaymentSuccess() {
           <Card className="max-w-md text-center">
             <CardContent className="pt-6">
               <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-                <span className="text-2xl text-destructive">!</span>
+                <AlertCircle className="h-8 w-8 text-destructive" />
               </div>
               <p className="text-lg font-medium">Erreur de confirmation</p>
               <p className="text-muted-foreground mt-2">
@@ -135,12 +138,21 @@ export default function PaymentSuccess() {
               )}
 
               <div className="flex flex-col gap-3">
-                <Link href={`/messages/${phoneId}`}>
-                  <Button className="w-full gap-2" size="lg" data-testid="button-view-messages">
-                    <MessageSquare className="h-4 w-4" />
-                    Voir mes SMS
-                  </Button>
-                </Link>
+                {confirmedPhoneId ? (
+                  <Link href={`/messages/${confirmedPhoneId}`}>
+                    <Button className="w-full gap-2" size="lg" data-testid="button-view-messages">
+                      <MessageSquare className="h-4 w-4" />
+                      Voir mes SMS
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link href="/messages/list">
+                    <Button className="w-full gap-2" size="lg" data-testid="button-view-messages">
+                      <MessageSquare className="h-4 w-4" />
+                      Voir mes SMS
+                    </Button>
+                  </Link>
+                )}
                 <Link href="/numbers">
                   <Button variant="outline" className="w-full" data-testid="button-back-numbers">
                     Retour aux numéros
