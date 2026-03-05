@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { type Country, pricingPlans, phoneNumbers, reservations, users } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
+import { startMonthlyReminder } from "./monthly-reminder";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
 import * as telegram from "./telegram-service";
 import { z } from "zod";
@@ -1282,6 +1283,7 @@ export async function registerRoutes(
   });
 
   numberMonitor.startMonitoring(5 * 60 * 1000);
+  startMonthlyReminder();
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
     try {
