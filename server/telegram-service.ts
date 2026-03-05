@@ -1,21 +1,23 @@
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+function getToken(): string { return process.env.TELEGRAM_BOT_TOKEN || ""; }
+function getChatId(): string { return process.env.TELEGRAM_CHAT_ID || ""; }
 
 function isConfigured(): boolean {
-  return !!(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
+  return !!(getToken() && getChatId());
 }
 
 async function sendMessage(text: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
-  if (!isConfigured()) {
+  const token = getToken();
+  const chatId = getChatId();
+  if (!token || !chatId) {
     console.log("[Telegram] Non configuré — message ignoré:", text.slice(0, 80));
     return false;
   }
   try {
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
+        chat_id: chatId,
         text,
         parse_mode: parseMode,
         disable_web_page_preview: true,
