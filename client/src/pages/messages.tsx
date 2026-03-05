@@ -27,6 +27,7 @@ export default function Messages() {
   const [copied, setCopied] = useState(false);
   const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
   const [telegramConnected, setTelegramConnected] = useState(false);
+  const [supportDialogOpen, setSupportDialogOpen] = useState(false);
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
@@ -214,16 +215,15 @@ export default function Messages() {
             <p className="text-sm text-muted-foreground text-center max-w-md">
               Si vous ne recevez pas votre code ou si vous avez un problème avec ce numéro, notre support est disponible 7j/7 sur Telegram.
             </p>
-            <a 
-              href="https://t.me/GwadasmsBot" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-[#0088cc] text-[#0088cc] bg-background hover:bg-[#0088cc]/10 h-10 px-4 py-2 w-full max-w-sm gap-2 no-underline"
+            <Button
+              variant="outline"
+              className="w-full max-w-sm gap-2 border-[#0088cc] text-[#0088cc] hover:bg-[#0088cc]/10"
+              onClick={() => setSupportDialogOpen(true)}
               data-testid="button-support-chat"
             >
               <MessageSquare className="h-4 w-4" />
               Contacter le support (Telegram)
-            </a>
+            </Button>
           </div>
         </div>
       </main>
@@ -286,6 +286,41 @@ export default function Messages() {
               data-testid="button-telegram-close"
             >
               {telegramConnected ? "Fermer" : "Annuler"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={supportDialogOpen} onOpenChange={setSupportDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" style={{ color: "#0088cc" }} />
+              Contacter le support
+            </DialogTitle>
+            <DialogDescription>
+              Vous allez être redirigé vers notre bot Telegram <b>@GwadasmsBot</b> pour discuter avec notre équipe de support, disponible 7j/7.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-2">
+            <a
+              href="https://t.me/GwadasmsBot"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setSupportDialogOpen(false)}
+              className="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium h-10 px-4 py-2 text-white no-underline"
+              style={{ backgroundColor: "#0088cc" }}
+              data-testid="button-open-support-telegram"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Ouvrir Telegram
+            </a>
+            <Button
+              variant="outline"
+              onClick={() => setSupportDialogOpen(false)}
+              data-testid="button-cancel-support"
+            >
+              Annuler
             </Button>
           </div>
         </DialogContent>
