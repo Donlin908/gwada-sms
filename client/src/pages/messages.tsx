@@ -239,14 +239,6 @@ export default function Messages() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-1">
-              <p className="font-medium">Avant de continuer :</p>
-              <p className="text-muted-foreground">
-                Envoyez <code className="bg-background px-1 rounded font-mono">/start</code> au bot{" "}
-                <span className="font-medium text-primary">@GwadasmsBot</span> sur Telegram.
-              </p>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="telegram-phone" className="flex items-center gap-2">
                 <Phone className="h-4 w-4" />
@@ -264,7 +256,7 @@ export default function Messages() {
                 inputMode="numeric"
               />
               <p className="text-xs text-muted-foreground">
-                Format : indicatif pays + numéro, sans le + (ex: 33612345678 pour la France)
+                Indicatif pays + numéro, sans le + (ex: 33612345678 pour la France)
               </p>
             </div>
           </div>
