@@ -1088,61 +1088,20 @@ export async function registerRoutes(
       const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
 
       if (checkoutSession.payment_status !== 'paid') {
-        return res.status(400).json({ error: "Payment not completed" });
+        return res.status(400).json({ error: "Le paiement n'a pas encore été confirmé par Stripe." });
       }
 
-      // Check if reservation already exists (might be created by webhook)
+      // Check if reservation already exists (created by webhook)
       let reservation = await storage.getActiveReservation(phoneNumberId);
       
       if (!reservation) {
-        const plan = pricingPlans.find(p => p.id === planId);
-        if (!plan) {
-          return res.status(400).json({ error: "Invalid plan" });
-        }
-
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
-
-        // Associate with user if logged in, or by email from session
-        let userId = req.session.userId || null;
-        if (!userId && checkoutSession.customer_details?.email) {
-          const [user] = await db.select().from(users).where(eq(users.email, checkoutSession.customer_details.email)).limit(1);
-          if (user) userId = user.id;
-        }
-
-        reservation = await storage.createReservation({
-          phoneNumberId,
-          userId,
-          planId,
-          sessionId: userSessionId,
-          startsAt: now,
-          expiresAt,
-          isActive: true,
+        // We do NOT create the reservation here anymore to ensure only Webhook (official Stripe confirmation) 
+        // handles the creation after actual payment validation.
+        return res.json({ 
+          success: false, 
+          status: 'pending_webhook',
+          message: "Paiement reçu. Votre numéro sera activé dans quelques instants (en attente de confirmation finale)." 
         });
-
-        await storage.recordUsage({
-          phoneNumberId,
-          sessionId: userSessionId,
-          usedAt: now,
-          purpose: `Paid reservation with ${plan.name} plan (frontend fallback)`,
-        });
-
-        // Mark number as reserved
-        await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
-
-        // Notify Telegram
-        const phoneNum = await storage.getPhoneNumber(phoneNumberId);
-        if (phoneNum) {
-          const userEmail = userId ? (await storage.getUser(userId))?.email : checkoutSession.customer_details?.email;
-          telegram.notifyNewPayment({
-            amount: checkoutSession.amount_total || (plan.price * 100),
-            currency: checkoutSession.currency || "eur",
-            planName: plan.name,
-            phoneNumber: phoneNum.number,
-            country: phoneNum.country,
-            userEmail: userEmail || undefined,
-          }).catch(() => {});
-        }
       }
 
       res.json({
@@ -1158,7 +1117,7 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("Error confirming payment:", error);
-      res.status(500).json({ error: error.message || "Failed to confirm payment" });
+      res.status(500).json({ error: error.message || "Erreur lors de la vérification du paiement" });
     }
   });
 
