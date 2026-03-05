@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Check, RefreshCw } from "lucide-react";
+import { ArrowLeft, Copy, Check, RefreshCw, Send, MessageCircle, Phone } from "lucide-react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { SmsMessageCard } from "@/components/sms-message-card";
@@ -10,16 +10,27 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { type PhoneNumberResponse, type SmsMessageResponse } from "@shared/schema";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Send } from "lucide-react";
 
 export default function Messages() {
   const { id } = useParams<{ id: string }>();
   const [copied, setCopied] = useState(false);
+  const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
+  const [telegramPhone, setTelegramPhone] = useState("");
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
@@ -52,19 +63,29 @@ export default function Messages() {
   const telegramMutation = useMutation({
     mutationFn: (chatId: string) => apiRequest("POST", `/api/reservations/${reservation?.id}/telegram`, { chatId }),
     onSuccess: () => {
-      toast({ title: "Notifications activées", description: "Vous recevrez désormais vos codes sur Telegram." });
+      toast({ title: "Notifications activées !", description: "Vous recevrez vos codes SMS sur Telegram." });
       queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });
+      setTelegramDialogOpen(false);
+      setTelegramPhone("");
     },
     onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  const handleToggleTelegram = () => {
+  const handleOpenTelegram = () => {
     if (reservation?.telegramChatId) {
       telegramMutation.mutate("");
     } else {
-      const chatId = window.prompt("Entrez votre numéro de téléphone (Format: 33612345678) pour recevoir les SMS sur Telegram :\n\nImportant: Vous devez d'abord avoir envoyé /start au bot @GwadasmsBot");
-      if (chatId) telegramMutation.mutate(chatId);
+      setTelegramDialogOpen(true);
     }
+  };
+
+  const handleConfirmTelegram = () => {
+    const cleaned = telegramPhone.trim().replace(/\s+/g, "").replace(/^\+/, "");
+    if (!cleaned) {
+      toast({ title: "Numéro requis", description: "Veuillez saisir votre numéro de téléphone.", variant: "destructive" });
+      return;
+    }
+    telegramMutation.mutate(cleaned);
   };
 
   const CountryFlag = phoneNumber?.country === "france" ? FranceFlag : UsaFlag;
@@ -146,12 +167,13 @@ export default function Messages() {
                   <Button
                     variant={reservation.telegramChatId ? "default" : "outline"}
                     size="sm"
-                    onClick={handleToggleTelegram}
+                    onClick={handleOpenTelegram}
                     disabled={telegramMutation.isPending}
                     className="gap-2"
+                    data-testid="button-telegram"
                   >
                     <Send className="h-4 w-4" />
-                    {reservation.telegramChatId ? "Notifications Telegram ON" : "Recevoir sur Telegram"}
+                    {reservation.telegramChatId ? "Telegram activé ✓" : "Recevoir sur Telegram"}
                   </Button>
                 )}
               </div>
@@ -196,6 +218,68 @@ export default function Messages() {
         </div>
       </main>
       <Footer />
+
+      <Dialog open={telegramDialogOpen} onOpenChange={setTelegramDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              Recevoir vos SMS sur Telegram
+            </DialogTitle>
+            <DialogDescription>
+              Recevez automatiquement vos codes de vérification directement dans Telegram.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-1">
+              <p className="font-medium">Avant de continuer :</p>
+              <p className="text-muted-foreground">
+                Envoyez <code className="bg-background px-1 rounded font-mono">/start</code> au bot{" "}
+                <span className="font-medium text-primary">@GwadasmsBot</span> sur Telegram.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="telegram-phone" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Votre numéro de téléphone
+              </Label>
+              <Input
+                id="telegram-phone"
+                placeholder="33612345678"
+                value={telegramPhone}
+                onChange={(e) => setTelegramPhone(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleConfirmTelegram()}
+                data-testid="input-telegram-phone"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Format : indicatif pays + numéro, sans le + (ex: 33612345678 pour la France)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => { setTelegramDialogOpen(false); setTelegramPhone(""); }}
+              data-testid="button-telegram-cancel"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleConfirmTelegram}
+              disabled={telegramMutation.isPending || !telegramPhone.trim()}
+              className="gap-2"
+              data-testid="button-telegram-confirm"
+            >
+              <Send className="h-4 w-4" />
+              {telegramMutation.isPending ? "Activation..." : "Activer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
