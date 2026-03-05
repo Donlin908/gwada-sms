@@ -64,10 +64,10 @@ export async function sendDailyReport(): Promise<void> {
   const validNumbers = allNumbers.filter((n: any) => n.isValid);
   const availableNumbers = allNumbers.filter((n: any) => n.isAvailable && n.isValid);
 
-  const [activeRes] = await db.execute(sql`
+  const activeRes = await db.execute(sql`
     SELECT COUNT(*) as count FROM reservations WHERE is_active = true AND expires_at > NOW()
   `);
-  const activeCount = Number((activeRes as any)?.count ?? 0);
+  const activeCount = Number((activeRes.rows?.[0] as any)?.count ?? (activeRes as any)[0]?.count ?? 0);
 
   const totalEuros = (total / 100).toFixed(2).replace(".", ",");
   const dateStr = startOfYesterday.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
