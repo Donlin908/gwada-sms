@@ -55,6 +55,7 @@ export const reservations = pgTable("reservations", {
   phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),
   userId: varchar("user_id").references(() => users.id),
   telegramChatId: text("telegram_chat_id"),
+  telegramToken: text("telegram_token"),
   planId: text("plan_id").notNull(),
   sessionId: text("session_id").notNull(),
   startsAt: timestamp("starts_at").notNull().defaultNow(),

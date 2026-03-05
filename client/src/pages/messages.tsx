@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Check, RefreshCw, Send, MessageCircle, Phone } from "lucide-react";
+import { ArrowLeft, Copy, Check, RefreshCw, Send, MessageCircle, ExternalLink } from "lucide-react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { SmsMessageCard } from "@/components/sms-message-card";
@@ -10,28 +10,23 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type PhoneNumberResponse, type SmsMessageResponse } from "@shared/schema";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Messages() {
   const { id } = useParams<{ id: string }>();
   const [copied, setCopied] = useState(false);
   const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
-  const [telegramPhone, setTelegramPhone] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [telegramConnected, setTelegramConnected] = useState(false);
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
@@ -59,34 +54,29 @@ export default function Messages() {
     queryKey: ["/api/user/reservations"],
   });
 
-  const reservation = userReservations?.find(r => r.phoneNumberId === id && r.isActive);
+  const reservation = userReservations?.find((r: any) => r.phoneNumberId === id && r.isActive);
 
-  const telegramMutation = useMutation({
-    mutationFn: (chatId: string) => apiRequest("POST", `/api/reservations/${reservation?.id}/telegram`, { chatId }),
-    onSuccess: () => {
-      toast({ title: "Notifications activées !", description: "Vous recevrez vos codes SMS sur Telegram." });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });
-      setTelegramDialogOpen(false);
-      setTelegramPhone("");
-    },
-    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  const { data: telegramLinkData, refetch: refetchTelegramLink } = useQuery<{ deepLink: string; token: string; connected: boolean }>({
+    queryKey: [`/api/reservations/${reservation?.id}/telegram-link`],
+    enabled: !!reservation?.id && telegramDialogOpen,
+    refetchInterval: telegramDialogOpen && !telegramConnected ? 3000 : false,
   });
 
-  const handleOpenTelegram = () => {
-    if (reservation?.telegramChatId) {
-      telegramMutation.mutate("");
-    } else {
-      setTelegramDialogOpen(true);
+  useEffect(() => {
+    if (telegramLinkData?.connected && !telegramConnected) {
+      setTelegramConnected(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });
+      toast({ title: "Telegram connecté !", description: "Vous recevrez vos SMS directement dans Telegram." });
     }
-  };
+  }, [telegramLinkData?.connected, telegramConnected, queryClient, toast]);
 
-  const handleConfirmTelegram = () => {
-    const cleaned = telegramPhone.trim().replace(/\s+/g, "").replace(/^\+/, "");
-    if (!cleaned) {
-      toast({ title: "Numéro requis", description: "Veuillez saisir votre numéro de téléphone.", variant: "destructive" });
-      return;
-    }
-    telegramMutation.mutate(cleaned);
+  useEffect(() => {
+    if (reservation?.telegramChatId) setTelegramConnected(true);
+  }, [reservation?.telegramChatId]);
+
+  const handleOpenTelegram = () => {
+    setTelegramDialogOpen(true);
+    if (reservation?.id) refetchTelegramLink();
   };
 
   const CountryFlag = phoneNumber?.country === "france" ? FranceFlag : UsaFlag;
@@ -166,15 +156,14 @@ export default function Messages() {
                 </Button>
                 {reservation && (
                   <Button
-                    variant={reservation.telegramChatId ? "default" : "outline"}
+                    variant={telegramConnected ? "default" : "outline"}
                     size="sm"
                     onClick={handleOpenTelegram}
-                    disabled={telegramMutation.isPending}
                     className="gap-2"
                     data-testid="button-telegram"
                   >
                     <Send className="h-4 w-4" />
-                    {reservation.telegramChatId ? "Telegram activé ✓" : "Recevoir sur Telegram"}
+                    {telegramConnected ? "Telegram activé ✓" : "Recevoir sur Telegram"}
                   </Button>
                 )}
               </div>
@@ -221,64 +210,64 @@ export default function Messages() {
       <Footer />
 
       <Dialog open={telegramDialogOpen} onOpenChange={setTelegramDialogOpen}>
-        <DialogContent
-          className="sm:max-w-md"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            setTimeout(() => inputRef.current?.focus(), 50);
-          }}
-        >
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
               Recevoir vos SMS sur Telegram
             </DialogTitle>
             <DialogDescription>
-              Recevez automatiquement vos codes de vérification directement dans Telegram.
+              {telegramConnected
+                ? "Vos SMS sont transmis automatiquement sur Telegram."
+                : "Ouvrez le bot Telegram ci-dessous — la connexion se fait en un clic."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="telegram-phone" className="flex items-center gap-2">
-                <Phone className="h-4 w-4" />
-                Votre numéro de téléphone
-              </Label>
-              <Input
-                id="telegram-phone"
-                ref={inputRef}
-                placeholder="33612345678"
-                value={telegramPhone}
-                onChange={(e) => setTelegramPhone(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleConfirmTelegram()}
-                data-testid="input-telegram-phone"
-                type="tel"
-                inputMode="numeric"
-              />
-              <p className="text-xs text-muted-foreground">
-                Indicatif pays + numéro, sans le + (ex: 33612345678 pour la France)
-              </p>
-            </div>
+            {telegramConnected ? (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-center space-y-1">
+                <p className="text-green-600 dark:text-green-400 font-semibold">✅ Telegram connecté</p>
+                <p className="text-sm text-muted-foreground">Vous recevrez tous les SMS sur @GwadasmsBot.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Cliquez sur le bouton ci-dessous pour ouvrir <b>@GwadasmsBot</b> dans Telegram, puis appuyez sur <b>Démarrer</b>.
+                  </p>
+                  {telegramLinkData?.deepLink ? (
+                    <Button
+                      asChild
+                      className="w-full gap-2"
+                      data-testid="button-open-telegram"
+                    >
+                      <a href={telegramLinkData.deepLink} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                        Ouvrir @GwadasmsBot
+                      </a>
+                    </Button>
+                  ) : (
+                    <div className="flex items-center justify-center py-2">
+                      <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-center text-muted-foreground">
+                  La connexion sera détectée automatiquement après votre clic sur Démarrer.
+                </p>
+              </div>
+            )}
           </div>
 
-          <DialogFooter className="gap-2">
+          <div className="flex justify-end">
             <Button
               variant="outline"
-              onClick={() => { setTelegramDialogOpen(false); setTelegramPhone(""); }}
-              data-testid="button-telegram-cancel"
+              onClick={() => setTelegramDialogOpen(false)}
+              data-testid="button-telegram-close"
             >
-              Annuler
+              {telegramConnected ? "Fermer" : "Annuler"}
             </Button>
-            <Button
-              onClick={handleConfirmTelegram}
-              disabled={telegramMutation.isPending || !telegramPhone.trim()}
-              className="gap-2"
-              data-testid="button-telegram-confirm"
-            >
-              <Send className="h-4 w-4" />
-              {telegramMutation.isPending ? "Activation..." : "Activer"}
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

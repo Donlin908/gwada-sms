@@ -82,6 +82,30 @@ async function initStripe() {
 
 await initStripe();
 
+async function setupTelegramWebhook() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+  if (!token || !domain) return;
+  try {
+    const webhookUrl = `https://${domain}/api/telegram/webhook`;
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: webhookUrl }),
+    });
+    const data = await res.json() as any;
+    if (data.ok) {
+      console.log(`[Telegram] Webhook configuré : ${webhookUrl}`);
+    } else {
+      console.error("[Telegram] Erreur setWebhook:", data.description);
+    }
+  } catch (err: any) {
+    console.error("[Telegram] Impossible de configurer le webhook:", err.message);
+  }
+}
+
+await setupTelegramWebhook();
+
 app.post(
   '/api/stripe/webhook',
   express.raw({ type: 'application/json' }),

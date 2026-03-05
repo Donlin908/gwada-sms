@@ -902,36 +902,98 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/reservations/:id/telegram", async (req, res) => {
+  // Génère un lien Telegram pour une réservation (deep link avec token unique)
+  app.get("/api/reservations/:id/telegram-link", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Non authentifié");
     try {
       const { id } = req.params;
-      let { chatId } = req.body;
-
       const [reservation] = await db.select().from(reservations).where(eq(reservations.id, id));
       if (!reservation || reservation.userId !== (req.user as any).id) {
         return res.status(404).send("Réservation non trouvée");
       }
 
-      // Si c'est un numéro de téléphone, on essaie de trouver le Chat ID via getUpdates
-      if (chatId && !/^-?\[0-9\]+$/.test(chatId)) {
-        const cleanPhone = chatId.replace(/\D/g, "");
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
-        const data = await response.json() as any;
-        
-        if (data.ok && data.result.length > 0) {
-          // On cherche un message qui vient d'un utilisateur avec ce numéro (si partagé) 
-          // ou on fait au plus simple: on demande au bot d'envoyer un message de bienvenue si l'ID est trouvé
-          // Note: Telegram ne donne pas le numéro de téléphone par défaut. 
-          // Le plus fiable reste l'ID, mais je vais simplifier le message pour l'utilisateur.
-        }
+      // Génère un token unique si pas encore fait
+      let token = reservation.telegramToken;
+      if (!token) {
+        const { randomBytes } = await import("crypto");
+        token = randomBytes(16).toString("hex");
+        await db.update(reservations).set({ telegramToken: token }).where(eq(reservations.id, id));
       }
 
-      await db.update(reservations).set({ telegramChatId: chatId }).where(eq(reservations.id, id));
-      res.json({ success: true });
+      const botUsername = "GwadasmsBot";
+      const deepLink = `https://t.me/${botUsername}?start=${token}`;
+      const connected = !!reservation.telegramChatId;
+
+      res.json({ deepLink, token, connected });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Webhook Telegram — reçoit les mises à jour du bot (commande /start TOKEN)
+  app.post("/api/telegram/webhook", async (req, res) => {
+    try {
+      const update = req.body;
+      const message = update?.message;
+      if (!message || !message.text) return res.sendStatus(200);
+
+      const chatId = String(message.chat.id);
+      const text: string = message.text.trim();
+      const firstName = message.chat.first_name || "ami(e)";
+
+      if (text.startsWith("/start ")) {
+        const token = text.split(" ")[1]?.trim();
+        if (!token) return res.sendStatus(200);
+
+        const [reservation] = await db.select().from(reservations).where(eq(reservations.telegramToken, token));
+
+        if (!reservation) {
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: "❌ Lien invalide ou expiré. Retournez sur GWADA SMS pour générer un nouveau lien.",
+              parse_mode: "HTML",
+            }),
+          });
+          return res.sendStatus(200);
+        }
+
+        // Enregistre le chat_id sur la réservation
+        await db.update(reservations).set({ telegramChatId: chatId }).where(eq(reservations.telegramToken, token));
+
+        // Récupère le numéro de téléphone associé
+        const [phoneNum] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, reservation.phoneNumberId));
+        const flag = phoneNum?.country === "france" ? "🇫🇷" : "🇺🇸";
+        const num = phoneNum?.number || "";
+
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `✅ <b>Connexion réussie, ${firstName} !</b>\n\nVous recevrez automatiquement les SMS arrivant sur votre numéro ${flag} <code>${num}</code> directement ici.\n\n📅 Valable jusqu'au ${new Date(reservation.expiresAt).toLocaleDateString("fr-FR")}`,
+            parse_mode: "HTML",
+          }),
+        });
+
+      } else if (text === "/start") {
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `👋 Bonjour <b>${firstName}</b> !\n\nJe suis le bot de <b>GWADA SMS</b>.\n\nPour activer les notifications, cliquez sur le bouton <i>« Recevoir sur Telegram »</i> depuis votre page de réception de SMS sur le site.`,
+            parse_mode: "HTML",
+          }),
+        });
+      }
+
+      res.sendStatus(200);
+    } catch (err: any) {
+      console.error("[Telegram Webhook] Erreur:", err.message);
+      res.sendStatus(200);
     }
   });
 
