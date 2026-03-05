@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Copy, Check, RefreshCw, Send, MessageCircle, Phone } from "lucide-react";
@@ -31,6 +31,7 @@ export default function Messages() {
   const [copied, setCopied] = useState(false);
   const [telegramDialogOpen, setTelegramDialogOpen] = useState(false);
   const [telegramPhone, setTelegramPhone] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
     queryKey: [`/api/numbers/${id}`],
@@ -220,7 +221,13 @@ export default function Messages() {
       <Footer />
 
       <Dialog open={telegramDialogOpen} onOpenChange={setTelegramDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            setTimeout(() => inputRef.current?.focus(), 50);
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
@@ -247,12 +254,14 @@ export default function Messages() {
               </Label>
               <Input
                 id="telegram-phone"
+                ref={inputRef}
                 placeholder="33612345678"
                 value={telegramPhone}
                 onChange={(e) => setTelegramPhone(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleConfirmTelegram()}
                 data-testid="input-telegram-phone"
-                autoFocus
+                type="tel"
+                inputMode="numeric"
               />
               <p className="text-xs text-muted-foreground">
                 Format : indicatif pays + numéro, sans le + (ex: 33612345678 pour la France)
