@@ -37,6 +37,11 @@ export function Footer() {
                   Tarifs
                 </a>
               </li>
+              <li>
+                <Link href="/contact" className="transition-colors hover:text-foreground" data-testid="link-footer-contact">
+                  Support & Contact
+                </Link>
+              </li>
             </ul>
           </div>
 

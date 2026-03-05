@@ -12,6 +12,7 @@ import { sql, eq } from "drizzle-orm";
 import { db } from "./db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 
 const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
@@ -21,6 +22,7 @@ const adminSettingsSchema = z.object({
   maxUsagesDaily: z.number().int().min(1).max(1000).optional(),
   maxUsagesWeekly: z.number().int().min(1).max(1000).optional(),
   maxUsagesMonthly: z.number().int().min(1).max(1000).optional(),
+  maintenanceMode: z.boolean().optional(),
 });
 
 const purchaseNumberSchema = z.object({
@@ -46,6 +48,39 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // ─── Rate Limiters ───────────────────────────────────────────────────────
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // max 10 tentatives par IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Trop de tentatives, réessayez dans 15 minutes." },
+    skipSuccessfulRequests: true, // Ne compte pas les succès
+  });
+
+  const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5, // max 5 tentatives pour l'admin
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Trop de tentatives admin, réessayez dans 15 minutes." },
+    skipSuccessfulRequests: true,
+  });
+
+  const paymentLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Trop de requêtes de paiement." },
+  });
+
+  app.use("/api/auth/register", authLimiter);
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/admin/login", adminLoginLimiter);
+  app.use("/api/stripe/create-checkout-session", paymentLimiter);
+  // ─────────────────────────────────────────────────────────────────────────
 
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -599,6 +634,19 @@ export async function registerRoutes(
     }
   });
 
+  // Statut public du service (maintenance, etc.)
+  app.get("/api/status", async (req, res) => {
+    try {
+      const maintenanceMode = await storage.getSetting("maintenance_mode");
+      res.json({
+        maintenance: maintenanceMode === "true",
+        version: "1.0.0",
+      });
+    } catch {
+      res.json({ maintenance: false, version: "1.0.0" });
+    }
+  });
+
   app.get("/api/twilio/status", async (req, res) => {
     try {
       const isConfigured = twilioService.isConfigured();
@@ -665,6 +713,7 @@ export async function registerRoutes(
       const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "10";
       const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "5";
       const franceBundleRequired = await storage.getSetting("france_bundle_required") || "false";
+      const maintenanceMode = await storage.getSetting("maintenance_mode") || "false";
       
       res.json({
         ...stats,
@@ -676,6 +725,7 @@ export async function registerRoutes(
           maxUsagesWeekly: parseInt(maxUsagesWeekly),
           maxUsagesMonthly: parseInt(maxUsagesMonthly),
           franceBundleRequired: franceBundleRequired === "true",
+          maintenanceMode: maintenanceMode === "true",
         },
         services: {
           emailConfigured,
@@ -698,7 +748,7 @@ export async function registerRoutes(
         });
       }
       
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly } = parseResult.data;
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -720,6 +770,9 @@ export async function registerRoutes(
       }
       if (maxUsagesMonthly !== undefined) {
         await storage.setSetting("max_usages_monthly", String(maxUsagesMonthly));
+      }
+      if (maintenanceMode !== undefined) {
+        await storage.setSetting("maintenance_mode", String(maintenanceMode));
       }
       
       res.json({ message: "Settings updated successfully" });

@@ -1,6 +1,6 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -19,9 +19,24 @@ import Admin from "@/pages/admin";
 import MentionsLegales from "@/pages/mentions-legales";
 import PolitiqueConfidentialite from "@/pages/politique-confidentialite";
 import CGU from "@/pages/cgu";
+import Contact from "@/pages/contact";
+import Maintenance from "@/pages/maintenance";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const [location] = useLocation();
+  const isAdminRoute = location === "/admin";
+
+  const { data: status } = useQuery<{ maintenance: boolean }>({
+    queryKey: ["/api/status"],
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+
+  if (status?.maintenance && !isAdminRoute) {
+    return <Maintenance />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -38,6 +53,7 @@ function Router() {
       <Route path="/mentions-legales" component={MentionsLegales} />
       <Route path="/politique-confidentialite" component={PolitiqueConfidentialite} />
       <Route path="/cgu" component={CGU} />
+      <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -47,6 +47,7 @@ interface AdminStats {
     maxUsagesWeekly: number;
     maxUsagesMonthly: number;
     franceBundleRequired: boolean;
+    maintenanceMode: boolean;
   };
   services: {
     emailConfigured: boolean;
@@ -396,6 +397,7 @@ export default function AdminPage() {
   const [maxUsagesDaily, setMaxUsagesDaily] = useState(20);
   const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(10);
   const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(5);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
   
   const handleLogout = () => {
     sessionStorage.removeItem("adminAuth");
@@ -452,6 +454,7 @@ export default function AdminPage() {
       setMaxUsagesDaily(stats.settings.maxUsagesDaily ?? 20);
       setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 10);
       setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 5);
+      setMaintenanceMode(stats.settings.maintenanceMode ?? false);
     }
   }, [stats]);
   
@@ -464,6 +467,7 @@ export default function AdminPage() {
         maxUsagesDaily,
         maxUsagesWeekly,
         maxUsagesMonthly,
+        maintenanceMode,
       });
     },
     onSuccess: () => {
@@ -646,6 +650,23 @@ export default function AdminPage() {
                 checked={autoPurchaseEnabled}
                 onCheckedChange={setAutoPurchaseEnabled}
                 data-testid="switch-auto-purchase"
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="maintenance-mode" className="text-destructive font-semibold">
+                  Mode maintenance
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Affiche la page de maintenance à tous les visiteurs
+                </p>
+              </div>
+              <Switch
+                id="maintenance-mode"
+                checked={maintenanceMode}
+                onCheckedChange={setMaintenanceMode}
+                data-testid="switch-maintenance-mode"
               />
             </div>
             
