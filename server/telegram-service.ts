@@ -97,14 +97,15 @@ export async function notifyNumberInvalidated(phoneNumber: string, country: stri
   );
 }
 
-export async function notifySmsReceived(phoneNumber: string, from: string, body: string, country: string): Promise<void> {
+export async function notifySmsReceived(phoneNumber: string, from: string, body: string, country: string, userEmail?: string): Promise<void> {
   const flag = country === "france" ? "🇫🇷" : "🇺🇸";
   const preview = body.length > 200 ? body.slice(0, 200) + "…" : body;
+  const clientInfo = userEmail ? `\nClient : <code>${userEmail}</code>` : "";
   await sendMessage(
     `📩 <b>Nouveau SMS reçu</b>\n` +
     `Sur : ${flag} <code>${phoneNumber}</code>\n` +
     `De : <code>${from}</code>\n` +
-    `Message : ${preview}\n` +
+    `Message : <code>${preview}</code>${clientInfo}\n` +
     `📅 ${new Date().toLocaleString("fr-FR")}`
   );
 }
