@@ -1344,7 +1344,11 @@ export async function registerRoutes(
   app.post("/api/admin/compensation/generate", async (req, res) => {
     try {
       if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
-      const { reservationId, reason } = z.object({ reservationId: z.string(), reason: z.string().optional() }).parse(req.body);
+      const { reservationId, reason, sendToTelegram } = z.object({ 
+        reservationId: z.string(), 
+        reason: z.string().optional(),
+        sendToTelegram: z.boolean().optional()
+      }).parse(req.body);
 
       const basique = await storage.getActiveBasiqueReservations();
       const reservation = basique.find((r) => r.id === reservationId);
@@ -1363,8 +1367,24 @@ export async function registerRoutes(
         expiresAt,
       });
 
-      const link = `${req.protocol}://${req.get("host")}/compensation/${token}`;
-      res.json({ success: true, link, token: comp.token, expiresAt: expiresAt.toISOString() });
+      const botUsername = "GwadasmsBot";
+      const telegramLink = `https://t.me/${botUsername}?start=${token}`;
+      const webLink = `${req.protocol}://${req.get("host")}/compensation/${token}`;
+
+      let sentViaTelegram = false;
+      if (sendToTelegram && reservation.telegramChatId) {
+        await telegram.sendMessage(reservation.telegramChatId, `🎁 *Lien de compensation GWADA SMS*\n\nMotif : ${comp.reason}\n\nCliquez sur le lien ci-dessous pour choisir votre nouveau numéro gratuitement :\n${webLink}`);
+        sentViaTelegram = true;
+      }
+
+      res.json({ 
+        success: true, 
+        link: webLink, 
+        telegramLink,
+        sentViaTelegram,
+        token: comp.token, 
+        expiresAt: expiresAt.toISOString() 
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

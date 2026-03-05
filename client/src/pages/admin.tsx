@@ -481,12 +481,17 @@ export default function AdminPage() {
   });
 
   const generateCompensationMutation = useMutation({
-    mutationFn: ({ reservationId, reason }: { reservationId: string; reason: string }) =>
-      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }),
-    onSuccess: (data: { link: string; telegramLink: string; token: string }) => {
+    mutationFn: ({ reservationId, reason, sendToTelegram }: { reservationId: string; reason: string; sendToTelegram?: boolean }) =>
+      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason, sendToTelegram }),
+    onSuccess: (data: { link: string; telegramLink: string; token: string; sentViaTelegram?: boolean }) => {
       setGeneratedLink({ link: data.link, telegramLink: data.telegramLink, reservationId: data.token });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
-      toast({ title: "✅ Lien généré", description: "Copiez et partagez le lien avec le client." });
+      
+      if (data.sentViaTelegram) {
+        toast({ title: "✅ Envoyé !", description: "Le lien a été envoyé directement au client via le Bot Telegram." });
+      } else {
+        toast({ title: "✅ Lien généré", description: "Copiez et partagez le lien avec le client." });
+      }
     },
     onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -1170,17 +1175,38 @@ export default function AdminPage() {
                             </Button>
                           )}
                           {!r.hasActiveCompensation ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7"
-                              onClick={() => generateCompensationMutation.mutate({ reservationId: r.reservationId, reason: compensationReason })}
-                              disabled={generateCompensationMutation.isPending}
-                              data-testid={`button-generate-comp-${r.reservationId}`}
-                            >
-                              <Gift className="h-3 w-3 mr-1" />
-                              Générer lien
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7"
+                                onClick={() => generateCompensationMutation.mutate({ reservationId: r.reservationId, reason: compensationReason })}
+                                disabled={generateCompensationMutation.isPending}
+                                data-testid={`button-generate-comp-${r.reservationId}`}
+                              >
+                                <Gift className="h-3 w-3 mr-1" />
+                                Générer lien
+                              </Button>
+                              {r.telegramChatId && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs h-7 border-primary text-primary hover:bg-primary/10"
+                                  onClick={() => {
+                                    generateCompensationMutation.mutate({ 
+                                      reservationId: r.reservationId, 
+                                      reason: compensationReason,
+                                      sendToTelegram: true 
+                                    });
+                                  }}
+                                  disabled={generateCompensationMutation.isPending}
+                                  data-testid={`button-send-tg-${r.reservationId}`}
+                                >
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Envoyer via Bot
+                                </Button>
+                              )}
+                            </div>
                           ) : (
                             <Button
                               size="sm"
