@@ -18,6 +18,7 @@ import {
   CheckCircle,
   XCircle,
   BarChart3,
+  BarChart2,
   Lock,
   LogOut,
   TrendingUp,
@@ -426,6 +427,12 @@ export default function AdminPage() {
     onSuccess: () => toast({ title: "✅ Message Telegram envoyé", description: "Vérifiez votre conversation Telegram." }),
     onError: () => toast({ title: "❌ Échec Telegram", description: "Vérifiez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID.", variant: "destructive" }),
   });
+
+  const dailyReportMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/telegram/daily-report"),
+    onSuccess: () => toast({ title: "📊 Rapport journalier envoyé", description: "Vérifiez votre Telegram." }),
+    onError: () => toast({ title: "❌ Échec du rapport", description: "Vérifiez la configuration Telegram.", variant: "destructive" }),
+  });
   
   useEffect(() => {
     if (stats?.settings) {
@@ -771,6 +778,17 @@ export default function AdminPage() {
                 >
                   <Send className="mr-2 h-3.5 w-3.5" />
                   {testTelegramMutation.isPending ? "Envoi..." : "Envoyer message de test"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => dailyReportMutation.mutate()}
+                  disabled={dailyReportMutation.isPending || !telegramStatus.configured}
+                  className="w-full"
+                  data-testid="button-daily-report"
+                >
+                  <BarChart2 className="mr-2 h-3.5 w-3.5" />
+                  {dailyReportMutation.isPending ? "Génération..." : "Envoyer rapport journalier"}
                 </Button>
               </div>
             )}

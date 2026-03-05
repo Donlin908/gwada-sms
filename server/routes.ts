@@ -847,21 +847,20 @@ export async function registerRoutes(
 
   app.post("/api/admin/telegram/daily-report", async (req, res) => {
     try {
-      const [numbersResult, usersResult, reservationsResult] = await Promise.all([
-        db.execute(sql`SELECT country, is_valid FROM phone_numbers`),
-        db.execute(sql`SELECT COUNT(*)::int AS count FROM users`),
-        db.execute(sql`SELECT COUNT(*)::int AS count FROM reservations WHERE expires_at > NOW()`),
-      ]);
-      const numbers = numbersResult.rows as any[];
-      const validNumbers = numbers.filter((n) => n.is_valid);
-      const franceNumbers = validNumbers.filter((n) => n.country === "france").length;
-      const usaNumbers = validNumbers.filter((n) => n.country === "usa").length;
-      const totalUsers = (usersResult.rows[0] as any)?.count ?? 0;
-      const totalReservations = (reservationsResult.rows[0] as any)?.count ?? 0;
+      const allNumbers = await storage.getPhoneNumbers();
+      const validFrance = allNumbers.filter((n: any) => n.country === "france" && n.isValid).length;
+      const validUsa = allNumbers.filter((n: any) => n.country === "usa" && n.isValid).length;
+      const totalValid = validFrance + validUsa;
+
+      const usersRes = await db.execute(sql`SELECT COUNT(*) AS total FROM users`);
+      const reservRes = await db.execute(sql`SELECT COUNT(*) AS total FROM reservations WHERE expires_at > NOW()`);
+      const totalUsers = parseInt(String((usersRes.rows?.[0] as any)?.total ?? (usersRes as any)[0]?.total ?? "0"), 10);
+      const totalReservations = parseInt(String((reservRes.rows?.[0] as any)?.total ?? (reservRes as any)[0]?.total ?? "0"), 10);
+
       await telegram.sendDailyReport({
-        totalNumbers: validNumbers.length,
-        franceNumbers,
-        usaNumbers,
+        totalNumbers: totalValid,
+        franceNumbers: validFrance,
+        usaNumbers: validUsa,
         totalUsers,
         totalReservations,
         revenueToday: 0,
