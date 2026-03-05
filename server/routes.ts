@@ -1165,7 +1165,73 @@ export async function registerRoutes(
           `💬 Support disponible 7j/7`
         );
 
-      } else if (text === "/acheter") {
+      } else if (text.startsWith("/acheter")) {
+        const isAdmin = chatId === String(process.env.TELEGRAM_CHAT_ID);
+        const parts = text.split(" ");
+        const countryArg = parts[1]?.toLowerCase();
+
+        // ── Commande admin : /acheter france | /acheter usa ─────────────
+        if (isAdmin && (countryArg === "france" || countryArg === "usa")) {
+          await tgSend(chatId, `⏳ Recherche d'un numéro ${countryArg === "france" ? "🇫🇷 France" : "🇺🇸 USA"} disponible sur Twilio…`);
+
+          if (!twilioService.isConfigured()) {
+            await tgSend(chatId, "❌ Twilio n'est pas configuré.");
+            return res.sendStatus(200);
+          }
+
+          try {
+            const countryCode = countryArg === "france" ? "FR" : "US";
+            const available = await twilioService.searchAvailableNumbers(countryCode, 5);
+            const candidate = available.find((n: any) => n.smsCapable);
+
+            if (!candidate) {
+              await tgSend(chatId, "😔 Aucun numéro SMS disponible trouvé sur Twilio pour ce pays.");
+              return res.sendStatus(200);
+            }
+
+            await tgSend(chatId, `📞 Numéro trouvé : <code>${candidate.phoneNumber}</code>\nAchat en cours…`);
+
+            const purchased = await twilioService.purchasePhoneNumber(candidate.phoneNumber, undefined, candidate.smsCapable);
+            if (!purchased) {
+              await tgSend(chatId, "❌ L'achat a échoué. Vérifiez votre compte Twilio (solde, bundle France, etc.).");
+              return res.sendStatus(200);
+            }
+
+            const saved = await storage.createPhoneNumber({
+              twilioSid: purchased.sid,
+              number: purchased.phoneNumber,
+              country: countryArg as "france" | "usa",
+              isAvailable: true,
+              isValid: true,
+            });
+
+            const flag = countryArg === "france" ? "🇫🇷" : "🇺🇸";
+            await tgSend(chatId,
+              `✅ <b>Numéro acheté avec succès !</b>\n\n` +
+              `${flag} <code>${purchased.phoneNumber}</code>\n` +
+              `SID : <code>${purchased.sid}</code>\n` +
+              `ID base : <code>${saved.id}</code>\n\n` +
+              `Le numéro est maintenant disponible pour les clients.`
+            );
+          } catch (err: any) {
+            await tgSend(chatId, `❌ Erreur : <code>${err.message?.slice(0, 200)}</code>`);
+          }
+          return res.sendStatus(200);
+        }
+
+        // ── Aide admin si /acheter sans argument ──────────────────────────
+        if (isAdmin && !countryArg) {
+          await tgSend(chatId,
+            `🛠️ <b>Commande admin — Achat de numéro Twilio</b>\n\n` +
+            `Usage :\n` +
+            `• <code>/acheter france</code> — Acheter un numéro 🇫🇷 France\n` +
+            `• <code>/acheter usa</code> — Acheter un numéro 🇺🇸 USA\n\n` +
+            `<i>Les clients utilisent cette commande pour acheter un numéro virtuel via Stripe.</i>`
+          );
+          return res.sendStatus(200);
+        }
+
+        // ── Flow client : /acheter (sans argument, non-admin) ─────────────
         tgSessions.set(chatId, { step: "choose_country" });
         await tgSend(chatId, "🌍 Choisissez le pays du numéro :", {
           reply_markup: {
