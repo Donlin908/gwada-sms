@@ -5,6 +5,7 @@ import { type Country, pricingPlans, phoneNumbers, reservations, users } from "@
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder } from "./monthly-reminder";
+import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
 import * as telegram from "./telegram-service";
 import { z } from "zod";
@@ -1244,6 +1245,113 @@ export async function registerRoutes(
         });
       }
 
+      // ── Commandes admin uniquement ────────────────────────────────────────
+      else if (chatId === String(process.env.TELEGRAM_CHAT_ID)) {
+
+        // /numeros france | /numeros usa
+        if (text.startsWith("/numeros")) {
+          const arg = text.split(" ")[1]?.toLowerCase();
+          const country = arg === "france" ? "france" : arg === "usa" ? "usa" : null;
+          if (!country) {
+            await tgSend(chatId, "Usage : <code>/numeros france</code> ou <code>/numeros usa</code>");
+          } else {
+            const nums = await storage.getPhoneNumbers(country as "france" | "usa");
+            const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+            const lines = nums.slice(0, 20).map((n: any) => {
+              const status = !n.isValid ? "❌ invalide" : n.activeReservation ? "🔒 réservé" : "✅ disponible";
+              return `${flag} <code>${n.number}</code> — ${status}`;
+            });
+            const total = nums.length;
+            const available = nums.filter((n: any) => n.isAvailable && n.isValid).length;
+            const reserved = nums.filter((n: any) => n.activeReservation).length;
+            const invalid = nums.filter((n: any) => !n.isValid).length;
+            await tgSend(chatId,
+              `📱 <b>Numéros ${flag} (${total})</b>\n` +
+              `✅ ${available} disponibles • 🔒 ${reserved} réservés • ❌ ${invalid} invalides\n\n` +
+              lines.join("\n")
+            );
+          }
+        }
+
+        // /maintenance on | /maintenance off
+        else if (text.startsWith("/maintenance")) {
+          const arg = text.split(" ")[1]?.toLowerCase();
+          if (arg === "on" || arg === "off") {
+            await storage.setSetting("maintenance_mode", arg === "on" ? "true" : "false");
+            await tgSend(chatId, arg === "on"
+              ? "🔧 <b>Mode maintenance activé</b> — Le site affiche la page de maintenance aux visiteurs."
+              : "✅ <b>Mode maintenance désactivé</b> — Le site est de nouveau accessible."
+            );
+          } else {
+            const current = await storage.getSetting("maintenance_mode");
+            await tgSend(chatId,
+              `🔧 Mode maintenance : <b>${current === "true" ? "ACTIVÉ" : "DÉSACTIVÉ"}</b>\n\n` +
+              `Usage : <code>/maintenance on</code> ou <code>/maintenance off</code>`
+            );
+          }
+        }
+
+        // /sync — synchroniser Twilio
+        else if (text === "/sync") {
+          await tgSend(chatId, "🔄 Synchronisation avec Twilio en cours…");
+          try {
+            const result = await numberMonitor.syncTwilioNumbers();
+            await tgSend(chatId,
+              `✅ <b>Synchronisation terminée</b>\n\n` +
+              `• Numéros synchronisés : <b>${result.synced}</b>\n` +
+              `• Numéros invalidés : <b>${result.invalidated}</b>\n\n` +
+              `📅 ${new Date().toLocaleString("fr-FR")}`
+            );
+          } catch (err: any) {
+            await tgSend(chatId, `❌ Erreur sync : <code>${err.message?.slice(0, 200)}</code>`);
+          }
+        }
+
+        // /revenus — revenus Stripe par période
+        else if (text === "/revenus") {
+          await tgSend(chatId, "⏳ Récupération des revenus Stripe…");
+          try {
+            const now = new Date();
+            const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const start7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const start30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const [today, week, month] = await Promise.all([
+              getStripeRevenueForPeriod(startToday, now),
+              getStripeRevenueForPeriod(start7d, now),
+              getStripeRevenueForPeriod(start30d, now),
+            ]);
+            const fmt = (n: number) => (n / 100).toFixed(2).replace(".", ",") + " €";
+            await tgSend(chatId,
+              `💰 <b>Revenus Stripe</b>\n\n` +
+              `📅 Aujourd'hui : <b>${fmt(today.total)}</b> (${today.count} paiement${today.count > 1 ? "s" : ""})\n` +
+              `📅 7 derniers jours : <b>${fmt(week.total)}</b> (${week.count} paiements)\n` +
+              `📅 30 derniers jours : <b>${fmt(month.total)}</b> (${month.count} paiements)\n\n` +
+              `📅 Mis à jour : ${now.toLocaleString("fr-FR")}`
+            );
+          } catch (err: any) {
+            await tgSend(chatId, `❌ Erreur Stripe : <code>${err.message?.slice(0, 200)}</code>`);
+          }
+        }
+
+        // /aide — liste des commandes admin
+        else if (text === "/aide" || text === "/help") {
+          await tgSend(chatId,
+            `🛠️ <b>Commandes admin GWADA SMS</b>\n\n` +
+            `<b>📊 Statistiques</b>\n` +
+            `• <code>/revenus</code> — Revenus Stripe du jour / 7j / 30j\n` +
+            `• <code>/numeros france</code> ou <code>/numeros usa</code> — Liste des numéros\n\n` +
+            `<b>⚙️ Gestion</b>\n` +
+            `• <code>/acheter france</code> ou <code>/acheter usa</code> — Acheter un numéro Twilio\n` +
+            `• <code>/sync</code> — Synchroniser avec Twilio\n` +
+            `• <code>/maintenance on|off</code> — Mode maintenance\n\n` +
+            `<b>📅 Automatique</b>\n` +
+            `• Rapport quotidien à 8h\n` +
+            `• Rappel URSSAF fin de mois\n` +
+            `• Alerte si aucun paiement 48h`
+          );
+        }
+      }
+
       res.sendStatus(200);
     } catch (err: any) {
       console.error("[Telegram Webhook] Erreur:", err.message);
@@ -1284,6 +1392,7 @@ export async function registerRoutes(
 
   numberMonitor.startMonitoring(5 * 60 * 1000);
   startMonthlyReminder();
+  startBotScheduler();
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
     try {
