@@ -206,7 +206,7 @@ export default function Messages() {
             <EmptyState type="messages" />
           )}
 
-          <div className="mt-12 flex flex-col items-center gap-4 border-t pt-8">
+          <div className="mt-12 flex flex-col items-center gap-4 border-t pt-8 relative z-10">
             <div className="flex items-center gap-2 text-muted-foreground">
               <MessageSquare className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium">Besoin d'aide ?</span>
@@ -214,17 +214,16 @@ export default function Messages() {
             <p className="text-sm text-muted-foreground text-center max-w-md">
               Si vous ne recevez pas votre code ou si vous avez un problème avec ce numéro, notre support est disponible 7j/7 sur Telegram.
             </p>
-          <Button 
-            variant="outline" 
-            className="w-full max-w-sm gap-2 border-[#0088cc] text-[#0088cc] hover:bg-[#0088cc]/10"
-            asChild
-            data-testid="button-support-chat"
-          >
-            <a href="https://t.me/GwadasmsBot" target="_blank" rel="noopener noreferrer">
+            <a 
+              href="https://t.me/GwadasmsBot" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-[#0088cc] text-[#0088cc] bg-background hover:bg-[#0088cc]/10 h-10 px-4 py-2 w-full max-w-sm gap-2 no-underline"
+              data-testid="button-support-chat"
+            >
               <MessageSquare className="h-4 w-4" />
               Contacter le support (Telegram)
             </a>
-          </Button>
           </div>
         </div>
       </main>
