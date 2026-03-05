@@ -845,6 +845,33 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/telegram/daily-report", async (req, res) => {
+    try {
+      const [numbersResult, usersResult, reservationsResult] = await Promise.all([
+        db.execute(sql`SELECT country, is_valid FROM phone_numbers`),
+        db.execute(sql`SELECT COUNT(*)::int AS count FROM users`),
+        db.execute(sql`SELECT COUNT(*)::int AS count FROM reservations WHERE expires_at > NOW()`),
+      ]);
+      const numbers = numbersResult.rows as any[];
+      const validNumbers = numbers.filter((n) => n.is_valid);
+      const franceNumbers = validNumbers.filter((n) => n.country === "france").length;
+      const usaNumbers = validNumbers.filter((n) => n.country === "usa").length;
+      const totalUsers = (usersResult.rows[0] as any)?.count ?? 0;
+      const totalReservations = (reservationsResult.rows[0] as any)?.count ?? 0;
+      await telegram.sendDailyReport({
+        totalNumbers: validNumbers.length,
+        franceNumbers,
+        usaNumbers,
+        totalUsers,
+        totalReservations,
+        revenueToday: 0,
+      });
+      res.json({ success: true, message: "Rapport journalier envoyé sur Telegram ✅" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   numberMonitor.startMonitoring(5 * 60 * 1000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
