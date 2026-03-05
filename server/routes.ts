@@ -407,15 +407,38 @@ export async function registerRoutes(
               receivedAt: msg.dateSent,
             });
             // Alerte Telegram pour chaque nouveau SMS reçu
-            const [reservation] = await db.execute(sql`
-              SELECT u.email 
+            const [resData] = await db.execute(sql`
+              SELECT u.email, r.telegram_chat_id
               FROM reservations r
               JOIN users u ON r.user_id = u.id
               WHERE r.phone_number_id = ${phoneNumber.id} AND r.expires_at > NOW()
               LIMIT 1
             `);
-            const userEmail = (reservation as any)?.email;
+            const userEmail = (resData as any)?.email;
+            const userChatId = (resData as any)?.telegram_chat_id;
+
+            // Notification Admin
             telegram.notifySmsReceived(phoneNumber.number, msg.from, msg.body, phoneNumber.country, userEmail).catch(() => {});
+
+            // Notification Client (si activée)
+            if (userChatId) {
+              const flag = phoneNumber.country === "france" ? "🇫🇷" : "🇺🇸";
+              const text = `📩 <b>Nouveau SMS reçu</b>\n` +
+                `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+                `De : <code>${msg.from}</code>\n` +
+                `Message : <code>${msg.body}</code>\n` +
+                `📅 ${new Date().toLocaleString("fr-FR")}`;
+              
+              fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: userChatId,
+                  text,
+                  parse_mode: "HTML",
+                }),
+              }).catch(err => console.error("[Telegram Client] Erreur:", err.message));
+            }
           }
         }
       }
@@ -876,6 +899,22 @@ export async function registerRoutes(
       res.json({ success: true, message: "Rapport journalier envoyé sur Telegram ✅" });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/reservations/:id/telegram", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Non authentifié");
+    try {
+      const { id } = req.params;
+      const { chatId } = req.body;
+      const [reservation] = await db.select().from(reservations).where(eq(reservations.id, id));
+      if (!reservation || reservation.userId !== (req.user as any).id) {
+        return res.status(404).send("Réservation non trouvée");
+      }
+      await db.update(reservations).set({ telegramChatId: chatId }).where(eq(reservations.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 

@@ -12,6 +12,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { type PhoneNumberResponse, type SmsMessageResponse } from "@shared/schema";
 import { FranceFlag, UsaFlag } from "@/components/flag-icons";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Send } from "lucide-react";
 
 export default function Messages() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +37,33 @@ export default function Messages() {
       await navigator.clipboard.writeText(phoneNumber.number);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: userReservations } = useQuery<any[]>({
+    queryKey: ["/api/user/reservations"],
+  });
+
+  const reservation = userReservations?.find(r => r.phoneNumberId === id && r.isActive);
+
+  const telegramMutation = useMutation({
+    mutationFn: (chatId: string) => apiRequest("POST", `/api/reservations/${reservation?.id}/telegram`, { chatId }),
+    onSuccess: () => {
+      toast({ title: "Notifications activées", description: "Vous recevrez désormais vos codes sur Telegram." });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const handleToggleTelegram = () => {
+    if (reservation?.telegramChatId) {
+      telegramMutation.mutate("");
+    } else {
+      const chatId = window.prompt("Entrez votre Chat ID Telegram pour recevoir les SMS :\n(Envoyez /start à @userinfobot sur Telegram pour obtenir votre ID)");
+      if (chatId) telegramMutation.mutate(chatId);
     }
   };
 
@@ -111,6 +142,18 @@ export default function Messages() {
                     </>
                   )}
                 </Button>
+                {reservation && (
+                  <Button
+                    variant={reservation.telegramChatId ? "default" : "outline"}
+                    size="sm"
+                    onClick={handleToggleTelegram}
+                    disabled={telegramMutation.isPending}
+                    className="gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    {reservation.telegramChatId ? "Notifications Telegram ON" : "Recevoir sur Telegram"}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="border-t pt-4">
