@@ -230,11 +230,23 @@ export interface PurchasedNumber {
   friendlyName: string;
 }
 
+const APPROVED_BUNDLE_STATUSES = ["twilio-approved", "provisionally-approved"];
+
 async function getTwilioAddressSid(): Promise<string | undefined> {
   if (!client) return undefined;
   try {
-    const addresses = await client.addresses.list({ limit: 1 });
-    return addresses[0]?.sid;
+    const envSid = process.env.TWILIO_ADDRESS_SID;
+    if (envSid) {
+      try {
+        await client.addresses(envSid).fetch();
+        return envSid;
+      } catch {
+        console.warn(`[Twilio] TWILIO_ADDRESS_SID ${envSid} invalide pour ce compte — recherche dynamique.`);
+      }
+    }
+    const addresses = await client.addresses.list({ limit: 10 });
+    const french = addresses.find(a => a.isoCountry === "FR") || addresses[0];
+    return french?.sid;
   } catch {
     return undefined;
   }
@@ -244,7 +256,7 @@ export async function checkFranceBundleApproved(): Promise<boolean> {
   if (!client) return false;
   try {
     const bundles = await client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 });
-    const approved = bundles.find(b => b.status === "twilio-approved");
+    const approved = bundles.find(b => APPROVED_BUNDLE_STATUSES.includes(b.status as string));
     return !!approved;
   } catch {
     return false;
@@ -254,22 +266,16 @@ export async function checkFranceBundleApproved(): Promise<boolean> {
 async function getApprovedBundleSid(countryCode: string): Promise<string | undefined> {
   if (!client) return undefined;
   try {
-    const bundles = await client.numbers.v2.regulatoryCompliance.bundles.list({
-      status: "twilio-approved",
-      isoCountry: countryCode,
-      limit: 10,
-    });
-    if (bundles.length > 0) {
-      console.log(`[Twilio] Bundle approuvé trouvé pour ${countryCode}: ${bundles[0].sid} (${bundles[0].friendlyName})`);
-      return bundles[0].sid;
-    }
-    // Fallback : chercher aussi les bundles "pending-review" au cas où l'API filtre différemment
     const allBundles = await client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 });
     const approved = allBundles.find(b =>
-      b.status === "twilio-approved" &&
-      (b.isoCountry === countryCode || b.isoCountry === undefined)
+      APPROVED_BUNDLE_STATUSES.includes(b.status as string) &&
+      (b.isoCountry === countryCode || !b.isoCountry)
     );
-    return approved?.sid;
+    if (approved) {
+      console.log(`[Twilio] Bundle approuvé trouvé pour ${countryCode}: ${approved.sid} (${approved.friendlyName}) — statut: ${approved.status}`);
+      return approved.sid;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -293,7 +299,7 @@ export async function purchasePhoneNumber(
   try {
     const isFranceNumber = phoneNumber.startsWith("+33");
     const [addressSid, bundleSid] = await Promise.all([
-      process.env.TWILIO_ADDRESS_SID ? Promise.resolve(process.env.TWILIO_ADDRESS_SID) : getTwilioAddressSid(),
+      getTwilioAddressSid(),
       isFranceNumber ? getApprovedBundleSid("FR") : Promise.resolve(undefined),
     ]);
 
@@ -346,6 +352,23 @@ export async function purchasePhoneNumber(
       console.error("Error purchasing phone number:", error);
     }
     return null;
+  }
+}
+
+export async function getTwilioDiagnostics(): Promise<{ bundles: any[]; addresses: any[] }> {
+  if (!client) return { bundles: [], addresses: [] };
+  try {
+    const [bundles, addresses] = await Promise.all([
+      client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 }),
+      client.addresses.list({ limit: 20 }),
+    ]);
+    return {
+      bundles: bundles.map(b => ({ sid: b.sid, name: (b as any).friendlyName, status: b.status, country: (b as any).isoCountry })),
+      addresses: addresses.map(a => ({ sid: a.sid, name: a.friendlyName, country: a.isoCountry, city: a.city })),
+    };
+  } catch (e: any) {
+    console.error("[Twilio] Diagnostic error:", e.message);
+    return { bundles: [], addresses: [] };
   }
 }
 

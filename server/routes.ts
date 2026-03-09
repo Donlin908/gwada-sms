@@ -677,6 +677,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/twilio-diag", async (req, res) => {
+    try {
+      const diag = await twilioService.getTwilioDiagnostics();
+      res.json(diag);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/admin/login", async (req, res) => {
     try {
       const parseResult = adminLoginSchema.safeParse(req.body);
