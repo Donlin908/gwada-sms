@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import type { Review } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,9 @@ import {
   MessageSquare,
   Gift,
   Copy,
-  Link2
+  Link2,
+  Star,
+  Trash2
 } from "lucide-react";
 
 interface AdminStats {
@@ -1308,6 +1311,77 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Avis clients */}
+      <AdminReviewsCard />
     </div>
+  );
+}
+
+function AdminReviewsCard() {
+  const { toast } = useToast();
+  const { data: reviewsList = [], isLoading } = useQuery<Review[]>({
+    queryKey: ["/api/reviews"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/reviews/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reviews"] });
+      toast({ title: "Avis supprimé" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de supprimer l'avis.", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card data-testid="card-reviews">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Star className="h-5 w-5" />
+          Avis clients
+        </CardTitle>
+        <CardDescription>
+          {reviewsList.length} avis publié(s) — supprimez les commentaires inappropriés
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+          </div>
+        ) : reviewsList.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-8">Aucun avis pour l'instant.</p>
+        ) : (
+          <div className="space-y-3">
+            {reviewsList.map((review) => (
+              <div key={review.id} className="flex items-start justify-between gap-4 p-3 border rounded-lg" data-testid={`row-review-${review.id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm">{review.name}</span>
+                    <span className="text-yellow-400">{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(review.createdAt).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">{review.comment}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={() => deleteMutation.mutate(review.id)}
+                  disabled={deleteMutation.isPending}
+                  data-testid={`button-delete-review-${review.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

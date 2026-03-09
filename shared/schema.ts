@@ -128,6 +128,23 @@ export const compensationTokens = pgTable("compensation_tokens", {
 
 export type CompensationToken = typeof compensationTokens.$inferSelect;
 
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true }).extend({
+  name: z.string().min(2, "Le nom doit faire au moins 2 caractères").max(50),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(10, "Le commentaire doit faire au moins 10 caractères").max(500),
+});
+
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;
+
 export const numberAlerts = pgTable("number_alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   phoneNumberId: varchar("phone_number_id").notNull().references(() => phoneNumbers.id),

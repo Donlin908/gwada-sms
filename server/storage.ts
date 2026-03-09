@@ -1,4 +1,4 @@
-import { eq, and, gt, lt, gte } from "drizzle-orm";
+import { eq, and, gt, lt, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -15,6 +15,8 @@ import {
   type SystemSetting,
   type NumberAlert,
   type CompensationToken,
+  type Review,
+  type InsertReview,
   users,
   phoneNumbers,
   smsMessages,
@@ -23,6 +25,7 @@ import {
   systemSettings,
   numberAlerts,
   compensationTokens,
+  reviews,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -75,6 +78,10 @@ export interface IStorage {
   claimCompensationToken(token: string, newReservationId: string): Promise<void>;
   getCompensationTokensByReservation(reservationId: string): Promise<CompensationToken[]>;
   getAllCompensationTokens(): Promise<CompensationToken[]>;
+
+  getReviews(): Promise<Review[]>;
+  createReview(data: InsertReview): Promise<Review>;
+  deleteReview(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -353,6 +360,19 @@ export class DatabaseStorage implements IStorage {
 
   async getAllCompensationTokens(): Promise<CompensationToken[]> {
     return db.select().from(compensationTokens).orderBy(compensationTokens.createdAt);
+  }
+
+  async getReviews(): Promise<Review[]> {
+    return db.select().from(reviews).orderBy(desc(reviews.createdAt));
+  }
+
+  async createReview(data: InsertReview): Promise<Review> {
+    const [review] = await db.insert(reviews).values(data).returning();
+    return review;
+  }
+
+  async deleteReview(id: string): Promise<void> {
+    await db.delete(reviews).where(eq(reviews.id, id));
   }
 }
 

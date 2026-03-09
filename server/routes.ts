@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { type Country, pricingPlans, phoneNumbers, reservations, users } from "@shared/schema";
+import { type Country, pricingPlans, phoneNumbers, reservations, users, insertReviewSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder } from "./monthly-reminder";
@@ -646,6 +646,37 @@ export async function registerRoutes(
       });
     } catch {
       res.json({ maintenance: false, version: "1.0.0" });
+    }
+  });
+
+  app.get("/api/reviews", async (req, res) => {
+    try {
+      const allReviews = await storage.getReviews();
+      res.json(allReviews);
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la récupération des avis" });
+    }
+  });
+
+  app.post("/api/reviews", async (req, res) => {
+    try {
+      const parsed = insertReviewSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors[0]?.message || "Données invalides" });
+      }
+      const review = await storage.createReview(parsed.data);
+      res.status(201).json(review);
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la création de l'avis" });
+    }
+  });
+
+  app.delete("/api/admin/reviews/:id", async (req, res) => {
+    try {
+      await storage.deleteReview(req.params.id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la suppression de l'avis" });
     }
   });
 
