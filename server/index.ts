@@ -174,7 +174,7 @@ async function main() {
     })
   );
 
-  await setupAuth(app);
+  setupAuth(app).catch(console.error);
   registerAuthRoutes(app);
 
   app.use((req, res, next) => {
