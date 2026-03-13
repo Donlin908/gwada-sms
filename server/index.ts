@@ -215,9 +215,6 @@ async function main() {
 
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);
@@ -232,6 +229,9 @@ async function main() {
       ensureSessionTable().catch(console.error);
       initStripe().catch(console.error);
       setupTelegramWebhook().catch(console.error);
+      if (process.env.NODE_ENV !== "production") {
+        import("./vite").then(({ setupVite }) => setupVite(httpServer, app)).catch(console.error);
+      }
     },
   );
 }
