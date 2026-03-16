@@ -12,7 +12,7 @@ localPort = 5000
 PORT = "5000"
 
 [deployment]
-deploymentTarget = "vm"
+deploymentTarget = "autoscale"
 run = ["node", "dist/index.cjs"]
 build = ["npm", "run", "build"]
 
@@ -50,3 +50,7 @@ ADMIN_EMAIL = "dl.pdf971@gmail.com"
 STRIPE_PUBLISHABLE_KEY = "pk_test_51T45Q3CvUJHVsIHmyE5bcGfJ7qeNugtQAf5U8D63FLWzrQFDy4njVGDtYSNjsRkXF6m6qpZchWGNOxQ5ICjP00UP00L5h9TAiI"
 STRIPE_PUBLISHABLE_KEY_LIVE = "pk_live_51T45PeCrNdTLpg22kmaKqr5Na0Of9ANhJ6gJ6spvIWwXuwPI3qrqZnUGxmG0dME9xUoTaBhGM5psDBojviRaVEJJ00MMUVjZ2I"
 TWILIO_ADDRESS_SID = "ADdc51073246d48694f59d8e2b7bc3ad2c"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000

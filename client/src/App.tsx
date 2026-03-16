@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -61,18 +62,32 @@ function Router() {
   );
 }
 
+function FallbackComponent() {
+  return (
+    <div data-testid="error-fallback" style={{ padding: "2rem", textAlign: "center" }}>
+      <h1>Une erreur est survenue</h1>
+      <p>L'application a rencontré un problème. Veuillez rafraîchir la page.</p>
+      <button data-testid="button-reload" onClick={() => window.location.reload()} style={{ marginTop: "1rem", padding: "0.5rem 1rem" }}>
+        Rafraîchir
+      </button>
+    </div>
+  );
+}
+
 function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <Sentry.ErrorBoundary fallback={<FallbackComponent />}>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 

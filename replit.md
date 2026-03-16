@@ -6,6 +6,11 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## Recent Changes (2026-03-16)
+
+- **Intégration Sentry (monitoring erreurs)** : Ajout de `@sentry/node` (backend) et `@sentry/react` (frontend) pour capturer automatiquement les erreurs en production. Initialisation dans `server/index.ts` (middlewares HTTP et Express) et `client/src/main.tsx` (avant le rendu React). ErrorBoundary Sentry autour de l'app dans `client/src/App.tsx`. Route de test `/debug-sentry` pour vérifier l'intégration. DSN stocké en secrets d'environnement (`SENTRY_DSN` et `VITE_SENTRY_DSN`).
+- **Configuration deployment** : Ajout de config autoscale pour la publication du projet (build avec npm, run avec node dist/server.js)
+
 ## Recent Changes (2026-03-05)
 
 - **Système de compensation Plan Basique** : Admin peut signaler les numéros défaillants (bouton "Signaler"), alerte automatique quand 3+ numéros problématiques, génération de liens uniques de compensation par client (valides 72h), page `/compensation/:token` pour que le client choisisse un nouveau numéro gratuitement

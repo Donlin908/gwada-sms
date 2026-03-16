@@ -1,3 +1,21 @@
+import * as Sentry from "@sentry/node";
+
+// Initialize Sentry BEFORE importing instrumented modules
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "development",
+    integrations: [
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration(),
+    ],
+  });
+  console.log("[Sentry] Backend monitoring initialized");
+} else {
+  console.warn("[Sentry] Warning: SENTRY_DSN is not set. Error reporting is disabled.");
+}
+
+// Import instrumented modules after Sentry initialization
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -204,6 +222,10 @@ async function main() {
   });
 
   await registerRoutes(httpServer, app);
+
+  if (process.env.SENTRY_DSN) {
+    Sentry.setupExpressErrorHandler(app);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
