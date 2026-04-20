@@ -997,6 +997,151 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Admin free reservations ─────────────────────────────────────────────
+
+  const adminReserveSchema = z.object({
+    phoneNumberId: z.string().min(1),
+    planId: z.enum(["daily", "weekly", "monthly"]),
+  });
+
+  app.post("/api/admin/reserve-number", async (req, res) => {
+    try {
+      const parsed = adminReserveSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "phoneNumberId et planId (daily/weekly/monthly) sont requis" });
+      }
+      const { phoneNumberId, planId } = parsed.data;
+
+      const plan = pricingPlans.find(p => p.id === planId);
+      if (!plan) return res.status(400).json({ error: "Plan invalide" });
+
+      const phoneNumber = await storage.getPhoneNumber(phoneNumberId);
+      if (!phoneNumber) return res.status(404).json({ error: "Numéro introuvable" });
+      if (!phoneNumber.isAvailable) return res.status(409).json({ error: "Ce numéro est déjà réservé" });
+      if (!phoneNumber.isValid) return res.status(409).json({ error: "Ce numéro n'est plus actif chez Twilio" });
+
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
+
+      const reservation = await storage.createReservation({
+        phoneNumberId,
+        planId,
+        userId: null,
+        sessionId: "admin",
+        startsAt: now,
+        expiresAt,
+        isActive: true,
+      });
+
+      await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
+
+      res.json({
+        id: reservation.id,
+        phoneNumber: phoneNumber.number,
+        country: phoneNumber.country,
+        planId,
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (err: any) {
+      console.error("[Admin] Erreur création réservation admin:", err.message);
+      res.status(500).json({ error: "Erreur lors de la création de la réservation" });
+    }
+  });
+
+  app.get("/api/admin/my-reservations", async (req, res) => {
+    try {
+      const rows = await db
+        .select({
+          id: reservations.id,
+          planId: reservations.planId,
+          startsAt: reservations.startsAt,
+          expiresAt: reservations.expiresAt,
+          isActive: reservations.isActive,
+          telegramToken: reservations.telegramToken,
+          telegramChatId: reservations.telegramChatId,
+          phoneNumberId: reservations.phoneNumberId,
+          number: phoneNumbers.number,
+          country: phoneNumbers.country,
+        })
+        .from(reservations)
+        .leftJoin(phoneNumbers, eq(reservations.phoneNumberId, phoneNumbers.id))
+        .where(eq(reservations.sessionId, "admin"));
+
+      const botUsername = "GwadasmsBot";
+      const result = rows
+        .filter(r => r.isActive && r.expiresAt > new Date())
+        .map(r => ({
+          id: r.id,
+          planId: r.planId,
+          startsAt: r.startsAt.toISOString(),
+          expiresAt: r.expiresAt.toISOString(),
+          phoneNumberId: r.phoneNumberId,
+          number: r.number,
+          country: r.country,
+          telegramConnected: !!r.telegramChatId,
+          telegramLink: r.telegramToken
+            ? `https://t.me/${botUsername}?start=${r.telegramToken}`
+            : null,
+        }));
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Admin] Erreur lecture réservations admin:", err.message);
+      res.status(500).json({ error: "Erreur lors de la récupération des réservations" });
+    }
+  });
+
+  app.delete("/api/admin/reservations/:id/release", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [reservation] = await db
+        .select()
+        .from(reservations)
+        .where(eq(reservations.id, id))
+        .limit(1);
+
+      if (!reservation || reservation.sessionId !== "admin") {
+        return res.status(404).json({ error: "Réservation admin introuvable" });
+      }
+
+      await db.update(reservations).set({ isActive: false }).where(eq(reservations.id, id));
+      await db.update(phoneNumbers).set({ isAvailable: true }).where(eq(phoneNumbers.id, reservation.phoneNumberId));
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[Admin] Erreur libération réservation admin:", err.message);
+      res.status(500).json({ error: "Erreur lors de la libération" });
+    }
+  });
+
+  app.get("/api/admin/reservations/:id/telegram-link", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [reservation] = await db
+        .select()
+        .from(reservations)
+        .where(eq(reservations.id, id))
+        .limit(1);
+
+      if (!reservation || reservation.sessionId !== "admin") {
+        return res.status(404).json({ error: "Réservation admin introuvable" });
+      }
+
+      let token = reservation.telegramToken;
+      if (!token) {
+        token = crypto.randomBytes(16).toString("hex");
+        await db.update(reservations).set({ telegramToken: token }).where(eq(reservations.id, id));
+      }
+
+      const botUsername = "GwadasmsBot";
+      const deepLink = `https://t.me/${botUsername}?start=${token}`;
+
+      res.json({ deepLink, token, connected: !!reservation.telegramChatId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Génère un lien Telegram pour une réservation (deep link avec token unique)
   app.get("/api/reservations/:id/telegram-link", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Non authentifié");

@@ -1312,9 +1312,248 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
+      {/* Mon accès admin */}
+      <AdminMyAccessCard numbers={numbers ?? []} />
+
       {/* Avis clients */}
       <AdminReviewsCard />
     </div>
+  );
+}
+
+interface AdminReservation {
+  id: string;
+  planId: string;
+  startsAt: string;
+  expiresAt: string;
+  phoneNumberId: string;
+  number: string | null;
+  country: string | null;
+  telegramConnected: boolean;
+  telegramLink: string | null;
+}
+
+function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
+  const { toast } = useToast();
+  const [selectedCountry, setSelectedCountry] = useState<"france" | "usa">("france");
+  const [selectedNumberId, setSelectedNumberId] = useState<string>("");
+  const [selectedPlan, setSelectedPlan] = useState<"daily" | "weekly" | "monthly">("monthly");
+
+  const { data: myReservations = [], isLoading: reservationsLoading, refetch: refetchReservations } = useQuery<AdminReservation[]>({
+    queryKey: ["/api/admin/my-reservations"],
+    refetchInterval: 30000,
+  });
+
+  const availableNumbers = numbers.filter(
+    n => n.isAvailable && n.isValid && n.country === selectedCountry
+  );
+
+  const reserveMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/admin/reserve-number", {
+        phoneNumberId: selectedNumberId,
+        planId: selectedPlan,
+      }),
+    onSuccess: () => {
+      toast({ title: "✅ Numéro réservé", description: "Votre réservation admin est active." });
+      setSelectedNumberId("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/my-reservations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
+    },
+    onError: (err: Error) =>
+      toast({ title: "❌ Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const releaseMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/reservations/${id}/release`),
+    onSuccess: () => {
+      toast({ title: "Numéro libéré" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/my-reservations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
+    },
+    onError: (err: Error) =>
+      toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const getTelegramLinkMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("GET", `/api/admin/reservations/${id}/telegram-link`);
+      return res.json() as Promise<{ deepLink: string; connected: boolean }>;
+    },
+    onSuccess: (data) => {
+      navigator.clipboard.writeText(data.deepLink);
+      toast({
+        title: data.connected ? "✅ Déjà connecté" : "🔗 Lien copié",
+        description: data.connected
+          ? "Ce numéro est déjà lié à Telegram."
+          : "Ouvrez ce lien dans Telegram pour recevoir les SMS.",
+      });
+      refetchReservations();
+    },
+    onError: (err: Error) =>
+      toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const planLabels: Record<string, string> = {
+    daily: "24 heures",
+    weekly: "7 jours",
+    monthly: "30 jours",
+  };
+
+  return (
+    <Card data-testid="card-admin-access">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Phone className="h-5 w-5 text-primary" />
+          Mon accès admin
+        </CardTitle>
+        <CardDescription>
+          Réservez un numéro gratuitement pour votre propre usage, sans passer par Stripe.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+
+        {/* Mes réservations actives */}
+        {myReservations.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Réservations actives</p>
+            {myReservations.map(r => (
+              <div
+                key={r.id}
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 border rounded-lg bg-primary/5"
+                data-testid={`card-admin-reservation-${r.id}`}
+              >
+                <div className="flex-1 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold">{r.number}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {r.country === "france" ? "🇫🇷 France" : "🇺🇸 USA"}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">{planLabels[r.planId] ?? r.planId}</Badge>
+                    <Badge variant="default" className="text-xs bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">Admin</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Expire le {new Date(r.expiresAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                  </p>
+                  {r.telegramConnected && (
+                    <p className="text-xs text-green-600 dark:text-green-400 font-medium">✅ Telegram connecté</p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => getTelegramLinkMutation.mutate(r.id)}
+                    disabled={getTelegramLinkMutation.isPending}
+                    data-testid={`button-telegram-link-${r.id}`}
+                    title="Obtenir le lien Telegram pour recevoir les SMS"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    {r.telegramConnected ? "Lien Telegram" : "Connecter Telegram"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => releaseMutation.mutate(r.id)}
+                    disabled={releaseMutation.isPending}
+                    data-testid={`button-release-${r.id}`}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Libérer
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {reservationsLoading && (
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full" />
+          </div>
+        )}
+
+        {/* Formulaire de réservation */}
+        <div className="space-y-4 border-t pt-4">
+          <p className="text-sm font-medium">Réserver un numéro</p>
+
+          <div className="flex gap-2">
+            <Button
+              variant={selectedCountry === "france" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setSelectedCountry("france"); setSelectedNumberId(""); }}
+              data-testid="button-country-france"
+            >
+              🇫🇷 France
+            </Button>
+            <Button
+              variant={selectedCountry === "usa" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setSelectedCountry("usa"); setSelectedNumberId(""); }}
+              data-testid="button-country-usa"
+            >
+              🇺🇸 USA
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Numéro disponible</Label>
+            {availableNumbers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Aucun numéro disponible pour {selectedCountry === "france" ? "la France" : "les USA"} en ce moment.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {availableNumbers.map(n => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => setSelectedNumberId(n.id)}
+                    className={`flex items-center gap-2 p-2 border rounded-lg text-sm text-left transition-colors ${
+                      selectedNumberId === n.id
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "hover:bg-muted/50"
+                    }`}
+                    data-testid={`button-select-number-${n.id}`}
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-mono">{n.number}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Durée</Label>
+            <div className="flex gap-2">
+              {(["daily", "weekly", "monthly"] as const).map(plan => (
+                <Button
+                  key={plan}
+                  variant={selectedPlan === plan ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedPlan(plan)}
+                  data-testid={`button-plan-${plan}`}
+                >
+                  {planLabels[plan]}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            onClick={() => reserveMutation.mutate()}
+            disabled={!selectedNumberId || reserveMutation.isPending}
+            className="w-full"
+            data-testid="button-admin-reserve"
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            {reserveMutation.isPending ? "Réservation en cours..." : "Réserver gratuitement"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
