@@ -732,6 +732,7 @@ export async function registerRoutes(
       }
       
       if (password === adminPassword) {
+        req.session.adminAuth = true;
         res.json({ success: true, message: "Connexion réussie" });
       } else {
         res.status(401).json({ error: "Mot de passe incorrect" });
@@ -1005,6 +1006,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/reserve-number", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const parsed = adminReserveSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1019,6 +1021,14 @@ export async function registerRoutes(
       if (!phoneNumber) return res.status(404).json({ error: "Numéro introuvable" });
       if (!phoneNumber.isAvailable) return res.status(409).json({ error: "Ce numéro est déjà réservé" });
       if (!phoneNumber.isValid) return res.status(409).json({ error: "Ce numéro n'est plus actif chez Twilio" });
+
+      const settingKey = planId === "daily" ? "max_usages_daily" : planId === "weekly" ? "max_usages_weekly" : "max_usages_monthly";
+      const defaultLimit = planId === "daily" ? "20" : planId === "weekly" ? "10" : "5";
+      const maxUsageStr = await storage.getSetting(settingKey) || defaultLimit;
+      const maxUsage = parseInt(maxUsageStr);
+      if (phoneNumber.usageCount >= maxUsage) {
+        return res.status(409).json({ error: `Ce numéro a atteint la limite d'utilisation pour le plan ${plan.name} (${maxUsage} fois)` });
+      }
 
       const now = new Date();
       const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
@@ -1035,6 +1045,13 @@ export async function registerRoutes(
 
       await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
 
+      await storage.recordUsage({
+        phoneNumberId,
+        sessionId: "admin",
+        usedAt: now,
+        purpose: `Admin reservation with ${plan.name} plan`,
+      });
+
       res.json({
         id: reservation.id,
         phoneNumber: phoneNumber.number,
@@ -1049,6 +1066,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/my-reservations", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const rows = await db
         .select({
@@ -1092,6 +1110,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/admin/reservations/:id/release", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const { id } = req.params;
       const [reservation] = await db
@@ -1115,6 +1134,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/reservations/:id/telegram-link", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const { id } = req.params;
       const [reservation] = await db
