@@ -6,6 +6,7 @@ import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder } from "./monthly-reminder";
 import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
+import { startSmsPoller } from "./sms-poller";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
 import * as telegram from "./telegram-service";
 import { z } from "zod";
@@ -1621,6 +1622,7 @@ export async function registerRoutes(
   numberMonitor.startMonitoring(5 * 60 * 1000);
   startMonthlyReminder();
   startBotScheduler();
+  startSmsPoller(30000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
     try {
