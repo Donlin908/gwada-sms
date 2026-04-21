@@ -1378,16 +1378,23 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
   const getTelegramLinkMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest("GET", `/api/admin/reservations/${id}/telegram-link`);
-      return res.json() as Promise<{ deepLink: string; connected: boolean }>;
+      return res.json() as Promise<{ deepLink: string; connected: boolean; sentToTelegram: boolean }>;
     },
     onSuccess: (data) => {
       navigator.clipboard.writeText(data.deepLink);
-      toast({
-        title: data.connected ? "✅ Déjà connecté" : "🔗 Lien copié",
-        description: data.connected
-          ? "Ce numéro est déjà lié à Telegram."
-          : "Ouvrez ce lien dans Telegram pour recevoir les SMS.",
-      });
+      if (data.connected) {
+        toast({ title: "✅ Déjà connecté", description: "Ce numéro est déjà lié à Telegram." });
+      } else if (data.sentToTelegram) {
+        toast({
+          title: "📨 Lien envoyé sur Telegram",
+          description: "Ouvrez Telegram et cliquez sur le lien pour activer la réception des SMS.",
+        });
+      } else {
+        toast({
+          title: "🔗 Lien copié",
+          description: "Telegram non configuré côté serveur — le lien a été copié dans le presse-papiers.",
+        });
+      }
       refetchReservations();
     },
     onError: (err: Error) =>

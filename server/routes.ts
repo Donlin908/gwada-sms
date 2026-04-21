@@ -1156,7 +1156,30 @@ export async function registerRoutes(
       const botUsername = "GwadasmsBot";
       const deepLink = `https://t.me/${botUsername}?start=${token}`;
 
-      res.json({ deepLink, token, connected: !!reservation.telegramChatId });
+      const [pn] = await db
+        .select({ number: phoneNumbers.number, country: phoneNumbers.country })
+        .from(phoneNumbers)
+        .where(eq(phoneNumbers.id, reservation.phoneNumberId))
+        .limit(1);
+
+      let sentToTelegram = false;
+      const adminChatId = process.env.TELEGRAM_CHAT_ID;
+      if (adminChatId && telegram.isConfigured()) {
+        const flag = pn?.country === "france" ? "🇫🇷" : "🇺🇸";
+        const message =
+          `🔗 <b>Connecter votre numéro admin à Telegram</b>\n\n` +
+          `${flag} <code>${pn?.number ?? ""}</code>\n` +
+          `Expire le ${reservation.expiresAt.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}\n\n` +
+          `Cliquez sur le lien ci-dessous pour activer la réception des SMS dans Telegram :\n${deepLink}`;
+        try {
+          await telegram.sendMessage(adminChatId, message);
+          sentToTelegram = true;
+        } catch (e: any) {
+          console.error("[Admin] Échec envoi lien Telegram:", e.message);
+        }
+      }
+
+      res.json({ deepLink, token, connected: !!reservation.telegramChatId, sentToTelegram });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
