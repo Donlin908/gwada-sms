@@ -173,21 +173,22 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       searchParams.mmsEnabled = true;
       searchParams.excludeAllAddressRequired = true;
     }
-    // France : les numéros locaux FR ne supportent PAS MMS (0 résultat avec mmsEnabled:true)
-    // Tous les numéros FR exigent une adresse locale (AddrReq: local) — fournie via TWILIO_ADDRESS_SID + bundle ARCEP
+    // France : numéros mobiles (+33 6xx/7xx) — meilleure compatibilité SMS de vérification
+    // Bundle ARCEP Mobile requis (fourni via getApprovedBundleSid au moment de l'achat)
 
-    const rawNumbers = await client.availablePhoneNumbers(countryCode).local
-      .list(searchParams);
+    const numberList = countryCode === "FR"
+      ? client.availablePhoneNumbers(countryCode).mobile
+      : client.availablePhoneNumbers(countryCode).local;
 
-    // Filtre supplémentaire : on rejette les numéros fax-only ou sans MMS confirmé
-    // Note : capabilities peut être undefined dans la recherche (comportement Twilio connu)
-    // On se fie à mmsEnabled:true de la requête comme garantie principale
+    const rawNumbers = await numberList.list(searchParams);
+
+    // Filtre : SMS obligatoire. MMS uniquement exigé pour les USA (les numéros FR mobile ne supportent pas MMS).
     const filtered = rawNumbers.filter((num: any) => {
-      // Si capabilities est renseigné, vérifier SMS + MMS
       if (num.capabilities && typeof num.capabilities.sms !== "undefined") {
-        return num.capabilities.sms === true && num.capabilities.mms === true;
+        if (!num.capabilities.sms) return false;
+        if (countryCode === "US" && !num.capabilities.mms) return false;
+        return true;
       }
-      // Sinon, on fait confiance aux paramètres de la requête API
       return true;
     });
 
