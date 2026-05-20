@@ -107,7 +107,7 @@ export default function CGU() {
           <h2 className="text-xl font-semibold mb-3">10. Droit applicable</h2>
           <p className="text-muted-foreground leading-relaxed">
             Les présentes CGU sont soumises au droit français. Tout litige sera soumis à la compétence
-            exclusive des tribunaux de Guadeloupe, sauf disposition légale contraire.
+            exclusive des tribunaux de Paris, sauf disposition légale contraire.
           </p>
         </section>
       </main>

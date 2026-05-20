@@ -65,7 +65,7 @@ export default function Contact() {
                     <Clock className="h-5 w-5 text-primary" />
                     Horaires de support
                   </CardTitle>
-                  <CardDescription>Guadeloupe (UTC-4)</CardDescription>
+                  <CardDescription>Paris (UTC+1/+2)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex justify-between">

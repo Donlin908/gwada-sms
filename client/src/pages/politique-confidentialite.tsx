@@ -41,7 +41,7 @@ export default function PolitiqueConfidentialite() {
         <Section icon={Users} title="1. Responsable du traitement">
           <div className="rounded-lg border p-4 space-y-1 text-sm text-muted-foreground">
             <p><strong className="text-foreground">Entité :</strong> GWADA SMS (SASU)</p>
-            <p><strong className="text-foreground">Siège :</strong> Guadeloupe (971), France</p>
+            <p><strong className="text-foreground">Siège :</strong> 173 rue de Courcelles, 75017 Paris, France</p>
             <p><strong className="text-foreground">Email :</strong>{" "}
               <a href="mailto:dl.pdf971@gmail.com" className="text-primary hover:underline">
                 dl.pdf971@gmail.com
