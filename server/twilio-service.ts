@@ -173,14 +173,29 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       searchParams.mmsEnabled = true;
       searchParams.excludeAllAddressRequired = true;
     }
-    // France : numéros mobiles (+33 6xx/7xx) — meilleure compatibilité SMS de vérification
-    // Bundle ARCEP Mobile requis (fourni via getApprovedBundleSid au moment de l'achat)
 
-    const numberList = countryCode === "FR"
-      ? client.availablePhoneNumbers(countryCode).mobile
-      : client.availablePhoneNumbers(countryCode).local;
+    let rawNumbers: any[] = [];
 
-    const rawNumbers = await numberList.list(searchParams);
+    if (countryCode === "FR") {
+      // France : essayer Mobile d'abord (+336xx/+337xx), fallback sur Local (+33939xxx)
+      // On mémorise le type trouvé pour l'achat
+      try {
+        const mobileList = await client.availablePhoneNumbers(countryCode).mobile.list(searchParams);
+        if (mobileList.length > 0) {
+          console.log(`[Twilio] Recherche France Mobile : ${mobileList.length} numéro(s) trouvé(s)`);
+          rawNumbers = mobileList.map((n: any) => ({ ...n, _frType: "mobile" }));
+        } else {
+          throw new Error("Aucun numéro Mobile disponible");
+        }
+      } catch (mobileErr: any) {
+        console.log(`[Twilio] Mobile FR non disponible (${mobileErr?.status || mobileErr?.message}), fallback sur Local`);
+        const localList = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
+        rawNumbers = localList.map((n: any) => ({ ...n, _frType: "local" }));
+        console.log(`[Twilio] Recherche France Local : ${rawNumbers.length} numéro(s) trouvé(s)`);
+      }
+    } else {
+      rawNumbers = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
+    }
 
     // Filtre : SMS obligatoire. MMS uniquement exigé pour les USA (les numéros FR mobile ne supportent pas MMS).
     const filtered = rawNumbers.filter((num: any) => {
@@ -304,16 +319,20 @@ export async function purchasePhoneNumber(
       isFranceNumber ? getApprovedBundleSid("FR") : Promise.resolve(undefined),
     ]);
 
+    // Numéros mobiles France : +336xx ou +337xx — nécessitent un bundle ARCEP Mobile
+    // Numéros locaux France : +3393xxx — pas de bundle requis (type Local)
+    const isFranceMobile = phoneNumber.startsWith("+336") || phoneNumber.startsWith("+337");
+
     const params: any = {
       phoneNumber,
       friendlyName: friendlyName || `GwadaSMS-${new Date().toISOString().split('T')[0]}`,
     };
     if (addressSid) params.addressSid = addressSid;
-    if (bundleSid) {
+    if (bundleSid && isFranceNumber) {
       params.bundleSid = bundleSid;
-      console.log(`[Twilio] Achat France avec bundle ${bundleSid}`);
-    } else if (isFranceNumber) {
-      console.warn(`[Twilio] Aucun bundle approuvé pour FR — l'achat risque d'échouer (bundle en attente de validation Twilio).`);
+      console.log(`[Twilio] Achat France ${isFranceMobile ? "Mobile" : "Local"} avec bundle ${bundleSid}`);
+    } else if (isFranceNumber && !bundleSid) {
+      console.warn(`[Twilio] Aucun bundle approuvé pour FR — l'achat risque d'échouer.`);
     }
 
     const purchased = await client.incomingPhoneNumbers.create(params);

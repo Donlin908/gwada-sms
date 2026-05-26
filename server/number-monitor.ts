@@ -141,8 +141,19 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
       }
 
       if (bundleErrorEncountered) {
-        await storage.setSetting("france_bundle_required", "true");
-        console.log(`[Monitor] France auto-purchase désactivé — créez un bundle ARCEP sur console.twilio.com/us1/regulatory-compliance/bundles`);
+        // Vérifie si un bundle est déjà approuvé : si oui, c'est un problème de type (Mobile vs Local)
+        // et non d'absence de bundle — on n'active pas le blocage pour éviter une boucle infinie
+        const hasApprovedBundle = await checkFranceBundleApproved();
+        if (hasApprovedBundle) {
+          console.warn(
+            `[Monitor] France auto-purchase suspendu — le bundle approuvé est de type Mobile mais les numéros disponibles sont de type Local. ` +
+            `Créez un bundle ARCEP de type "Local" sur console.twilio.com/us1/regulatory-compliance/bundles`
+          );
+          await storage.setSetting("france_local_bundle_required", "true");
+        } else {
+          await storage.setSetting("france_bundle_required", "true");
+          console.log(`[Monitor] France auto-purchase désactivé — créez un bundle ARCEP sur console.twilio.com/us1/regulatory-compliance/bundles`);
+        }
       }
     }
   }
