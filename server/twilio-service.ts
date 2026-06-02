@@ -361,17 +361,35 @@ export async function purchasePhoneNumber(
     };
   } catch (error: any) {
     const code = error?.code;
+    const isFranceLocal = phoneNumber.startsWith("+339");
+    let userMessage: string;
     if (code === 21649) {
-      console.warn(
-        `[Twilio] Numéro ${phoneNumber} — dossier de conformité réglementaire requis (bundle ARCEP France). ` +
-        `Créez un bundle sur console.twilio.com/us1/regulatory-compliance/bundles`
-      );
+      if (isFranceLocal) {
+        userMessage =
+          `Le numéro ${phoneNumber} est un numéro France de type "Local". ` +
+          `Votre bundle ARCEP approuvé est de type "Mobile" et ne peut pas servir à acheter un numéro Local. ` +
+          `Twilio n'a actuellement aucun numéro Mobile France en stock. ` +
+          `Solution : créez un bundle ARCEP de type "Local" sur console.twilio.com/us1/regulatory-compliance/bundles, ou attendez le retour en stock des numéros Mobile.`;
+      } else {
+        userMessage =
+          `Le numéro ${phoneNumber} nécessite un dossier de conformité réglementaire (bundle ARCEP France) approuvé du même type que le numéro. ` +
+          `Créez-le sur console.twilio.com/us1/regulatory-compliance/bundles`;
+      }
+      console.warn(`[Twilio] ${userMessage}`);
     } else if (code === 21404) {
-      console.warn(`[Twilio] Numéro ${phoneNumber} — limite de compte trial dépassée. Mettez à jour votre compte.`);
+      userMessage = `Le numéro ${phoneNumber} est indisponible (limite de compte trial ou numéro déjà attribué). Mettez à jour votre compte Twilio.`;
+      console.warn(`[Twilio] ${userMessage}`);
     } else {
       console.error("Error purchasing phone number:", error);
+      userMessage = error?.message
+        ? `Échec de l'achat auprès de Twilio : ${error.message}`
+        : "Échec de l'achat du numéro auprès de Twilio.";
     }
-    return null;
+    const purchaseError: any = new Error(userMessage);
+    purchaseError.userMessage = userMessage;
+    purchaseError.code = code;
+    purchaseError.isFranceLocal = isFranceLocal;
+    throw purchaseError;
   }
 }
 

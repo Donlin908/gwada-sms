@@ -114,7 +114,13 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           console.warn(`[Monitor] Numéro ${num.phoneNumber} ignoré — non compatible SMS.`);
           continue;
         }
-        const purchased = await purchasePhoneNumber(num.phoneNumber, undefined, num.smsCapable);
+        let purchased = null;
+        try {
+          purchased = await purchasePhoneNumber(num.phoneNumber, undefined, num.smsCapable);
+        } catch (err: any) {
+          console.warn(`[Monitor] Achat ${num.phoneNumber} échoué : ${err?.userMessage || err?.message}`);
+          purchased = null;
+        }
         
         if (purchased) {
           await storage.createPhoneNumber({

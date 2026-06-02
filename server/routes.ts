@@ -893,12 +893,22 @@ export async function registerRoutes(
       const smsCandidate = available.find(n => n.smsCapable);
 
       if (!smsCandidate) {
+        if (country === "france") {
+          return res.status(404).json({
+            error: "Aucun numéro Mobile France compatible SMS n'est disponible chez Twilio actuellement. Les numéros Mobile français sont souvent en rupture de stock — réessayez plus tard.",
+          });
+        }
         return res.status(404).json({ error: "Aucun numéro compatible SMS disponible dans cette région" });
       }
       
-      const purchased = await twilioService.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
+      let purchased;
+      try {
+        purchased = await twilioService.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
+      } catch (purchaseErr: any) {
+        return res.status(400).json({ error: purchaseErr?.userMessage || "Échec de l'achat du numéro auprès de Twilio." });
+      }
       if (!purchased) {
-        return res.status(500).json({ error: "Failed to purchase number" });
+        return res.status(500).json({ error: "Le numéro trouvé n'est pas compatible SMS. Aucun numéro SMS disponible dans cette région." });
       }
       
       const phoneNumber = await storage.createPhoneNumber({
