@@ -21,6 +21,7 @@ const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
   autoPurchaseEnabled: z.boolean().optional(),
   minNumbersPerCountry: z.number().int().min(1).max(100).optional(),
+  maxNumbersPerCountry: z.number().int().min(1).max(100).optional(),
   adminEmail: z.string().email().optional(),
   maxUsagesDaily: z.number().int().min(1).max(1000).optional(),
   maxUsagesWeekly: z.number().int().min(1).max(1000).optional(),
@@ -753,6 +754,7 @@ export async function registerRoutes(
       const usageThreshold = await storage.getSetting("usage_alert_threshold") || "100";
       const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled") || "false";
       const minPerCountry = await storage.getSetting("min_numbers_per_country") || "3";
+      const maxPerCountry = await storage.getSetting("max_numbers_per_country") || "10";
       const maxUsagesDaily = await storage.getSetting("max_usages_daily") || "20";
       const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "10";
       const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "5";
@@ -765,6 +767,7 @@ export async function registerRoutes(
           usageAlertThreshold: parseInt(usageThreshold),
           autoPurchaseEnabled: autoPurchaseEnabled === "true",
           minNumbersPerCountry: parseInt(minPerCountry),
+          maxNumbersPerCountry: parseInt(maxPerCountry),
           maxUsagesDaily: parseInt(maxUsagesDaily),
           maxUsagesWeekly: parseInt(maxUsagesWeekly),
           maxUsagesMonthly: parseInt(maxUsagesMonthly),
@@ -792,7 +795,7 @@ export async function registerRoutes(
         });
       }
       
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode } = parseResult.data;
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, maxNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -802,6 +805,9 @@ export async function registerRoutes(
       }
       if (minNumbersPerCountry !== undefined) {
         await storage.setSetting("min_numbers_per_country", String(minNumbersPerCountry));
+      }
+      if (maxNumbersPerCountry !== undefined) {
+        await storage.setSetting("max_numbers_per_country", String(maxNumbersPerCountry));
       }
       if (adminEmail !== undefined) {
         await storage.setSetting("admin_email", adminEmail);

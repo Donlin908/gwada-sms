@@ -12,6 +12,7 @@ export interface MonitoringStats {
   totalNumbers: number;
   franceNumbers: number;
   usaNumbers: number;
+  canadaNumbers: number;
   numbersAtLimit: number;
   totalUsage: number;
   alertsSent: number;
@@ -61,6 +62,8 @@ export async function checkAndAlertHighUsage(): Promise<number> {
   return alertsSent;
 }
 
+const DEFAULT_MAX_NUMBERS_PER_COUNTRY = 10;
+
 export async function checkAndAutoPurchase(): Promise<string[]> {
   if (!isTwilioConfigured()) {
     console.log("Twilio not configured, skipping auto-purchase");
@@ -74,31 +77,63 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
   }
   
   const minPerCountry = parseInt(await storage.getSetting("min_numbers_per_country") || String(MIN_NUMBERS_PER_COUNTRY));
+  const maxPerCountry = parseInt(await storage.getSetting("max_numbers_per_country") || String(DEFAULT_MAX_NUMBERS_PER_COUNTRY));
   
   const allNumbers = await storage.getAllPhoneNumbers();
   const purchasedNumbers: string[] = [];
   
   for (const country of ["france", "usa", "canada"] as Country[]) {
-    const validAvailableNumbers = allNumbers.filter(
-      n => n.country === country && n.isValid && n.isAvailable
-    );
+    // Tous les numéros valides (réservés ou non) — pour le plafond maximum
+    const allValidForCountry = allNumbers.filter(n => n.country === country && n.isValid);
+    
+    // Plafond absolu : ne pas acheter si on a déjà atteint le max total
+    if (allValidForCountry.length >= maxPerCountry) {
+      console.log(`[Monitor] ${country.toUpperCase()} : plafond atteint (${allValidForCountry.length}/${maxPerCountry} numéros valides). Aucun achat.`);
+      continue;
+    }
+
+    // Numéros disponibles pour de nouvelles réservations
+    const validAvailableNumbers = allValidForCountry.filter(n => n.isAvailable);
     
     if (validAvailableNumbers.length < minPerCountry) {
-      const needed = minPerCountry - validAvailableNumbers.length;
-      console.log(`[Monitor] ${country.toUpperCase()} : ${validAvailableNumbers.length}/${minPerCountry} disponibles. Tentative d'achat de 1 numéro.`);
+      const needed = Math.min(
+        minPerCountry - validAvailableNumbers.length,
+        maxPerCountry - allValidForCountry.length
+      );
+      console.log(`[Monitor] ${country.toUpperCase()} : ${validAvailableNumbers.length}/${minPerCountry} disponibles (${allValidForCountry.length}/${maxPerCountry} total). Tentative d'achat de 1 numéro.`);
       
       const countryCode = country === "france" ? "FR" : country === "canada" ? "CA" : "US";
 
       if (country === "france") {
         const bundleBlocked = await storage.getSetting("france_bundle_required");
-        if (bundleBlocked === "true") {
-          // Vérifie si le bundle a été approuvé depuis la dernière tentative
-          const isApproved = await checkFranceBundleApproved();
-          if (!isApproved) {
-            console.log(`[Monitor] Achat France suspendu — bundle ARCEP en attente d'approbation Twilio.`);
+        const localBundleBlocked = await storage.getSetting("france_local_bundle_required");
+
+        if (localBundleBlocked === "true") {
+          // Cas spécifique : bundle Mobile approuvé mais seuls des numéros Local disponibles.
+          // On ne tente rien tant que Twilio ne remet pas en stock des numéros Mobile FR (+336/+337).
+          // Vérification légère : est-ce que des numéros Mobile FR sont revenus ?
+          try {
+            const mobileCheck = await (await import("twilio")).default(
+              process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!
+            ).availablePhoneNumbers("FR").mobile.list({ smsEnabled: true, limit: 1 });
+            if (mobileCheck.length > 0) {
+              await storage.setSetting("france_local_bundle_required", "false");
+              console.log(`[Monitor] Numéros Mobile France de retour en stock ! Reprise de l'achat automatique France.`);
+            } else {
+              console.log(`[Monitor] Achat France suspendu — numéros Mobile FR toujours en rupture de stock (bundle Mobile approuvé mais seuls des Local disponibles).`);
+              continue;
+            }
+          } catch {
+            console.log(`[Monitor] Achat France suspendu — numéros Mobile FR toujours en rupture de stock.`);
             continue;
           }
-          // Bundle approuvé — on réactive l'achat automatiquement
+        } else if (bundleBlocked === "true") {
+          // Aucun bundle approuvé — vérifie si un bundle a été créé et approuvé depuis
+          const isApproved = await checkFranceBundleApproved();
+          if (!isApproved) {
+            console.log(`[Monitor] Achat France suspendu — aucun bundle ARCEP approuvé.`);
+            continue;
+          }
           await storage.setSetting("france_bundle_required", "false");
           console.log(`[Monitor] Bundle ARCEP approuvé ! Reprise de l'achat automatique France.`);
         }
@@ -180,12 +215,24 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
     const twilioNumbers = await getAllTwilioNumbers();
     const twilioSids = new Set(twilioNumbers.map(n => n.sid));
     
+    const CANADA_AREA_CODES = new Set([
+      "204","226","236","249","250","289","306","343","365","387",
+      "403","416","418","431","437","438","450","506","514","519",
+      "548","579","581","587","604","613","639","647","705","709",
+      "742","778","780","782","807","819","825","867","873","902","905",
+    ]);
+
     for (const twilioNum of twilioNumbers) {
       const existing = await storage.getPhoneNumberByTwilioSid(twilioNum.sid);
       if (!existing) {
-        let country: "france" | "usa" = "usa";
+        let country: Country = "usa";
         if (twilioNum.phoneNumber.startsWith("+33")) {
           country = "france";
+        } else if (twilioNum.phoneNumber.startsWith("+1") && twilioNum.phoneNumber.length >= 5) {
+          const areaCode = twilioNum.phoneNumber.substring(2, 5);
+          if (CANADA_AREA_CODES.has(areaCode)) {
+            country = "canada";
+          }
         }
         
         await storage.createPhoneNumber({
@@ -266,6 +313,7 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
     totalNumbers: allNumbers.length,
     franceNumbers: allNumbers.filter(n => n.country === "france").length,
     usaNumbers: allNumbers.filter(n => n.country === "usa").length,
+    canadaNumbers: allNumbers.filter(n => n.country === "canada").length,
     numbersAtLimit: allNumbers.filter(n => n.usageCount >= threshold).length,
     totalUsage,
     alertsSent: 0,

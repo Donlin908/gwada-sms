@@ -49,6 +49,7 @@ interface AdminStats {
     usageAlertThreshold: number;
     autoPurchaseEnabled: boolean;
     minNumbersPerCountry: number;
+    maxNumbersPerCountry: number;
     maxUsagesDaily: number;
     maxUsagesWeekly: number;
     maxUsagesMonthly: number;
@@ -400,6 +401,7 @@ export default function AdminPage() {
   const [usageThreshold, setUsageThreshold] = useState(100);
   const [autoPurchaseEnabled, setAutoPurchaseEnabled] = useState(false);
   const [minPerCountry, setMinPerCountry] = useState(3);
+  const [maxPerCountry, setMaxPerCountry] = useState(10);
   const [maxUsagesDaily, setMaxUsagesDaily] = useState(20);
   const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(10);
   const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(5);
@@ -504,6 +506,7 @@ export default function AdminPage() {
       setUsageThreshold(stats.settings.usageAlertThreshold);
       setAutoPurchaseEnabled(stats.settings.autoPurchaseEnabled);
       setMinPerCountry(stats.settings.minNumbersPerCountry);
+      setMaxPerCountry(stats.settings.maxNumbersPerCountry ?? 10);
       setMaxUsagesDaily(stats.settings.maxUsagesDaily ?? 20);
       setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 10);
       setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 5);
@@ -517,6 +520,7 @@ export default function AdminPage() {
         usageAlertThreshold: usageThreshold,
         autoPurchaseEnabled,
         minNumbersPerCountry: minPerCountry,
+        maxNumbersPerCountry: maxPerCountry,
         maxUsagesDaily,
         maxUsagesWeekly,
         maxUsagesMonthly,
@@ -733,7 +737,21 @@ export default function AdminPage() {
                 data-testid="input-min-numbers"
               />
               <p className="text-xs text-muted-foreground">
-                Nombre minimum de numéros disponibles par pays
+                Seuil bas — achète automatiquement si le nombre disponible tombe en dessous
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="max-numbers">Plafond maximum par pays</Label>
+              <Input
+                id="max-numbers"
+                type="number"
+                value={maxPerCountry}
+                onChange={(e) => setMaxPerCountry(parseInt(e.target.value) || 10)}
+                data-testid="input-max-numbers"
+              />
+              <p className="text-xs text-muted-foreground">
+                Plafond absolu — jamais plus de X numéros valides par pays (évite les achats en surplus)
               </p>
             </div>
 
