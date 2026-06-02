@@ -154,22 +154,34 @@ export interface AvailableNumberToPurchase {
   monthlyFee?: number;
 }
 
-export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: number = 5): Promise<AvailableNumberToPurchase[]> {
+/**
+ * Lit une capacité depuis l'objet capabilities de Twilio.
+ * L'API Twilio retourne les clés en majuscules (SMS, MMS, voice) dans availablePhoneNumbers
+ * mais en minuscules (sms, mms, voice) dans d'autres contextes.
+ * Cette fonction gère les deux cas.
+ */
+function readCap(caps: any, key: string): boolean {
+  if (!caps) return false;
+  return (
+    caps[key] === true ||
+    caps[key.toUpperCase()] === true ||
+    caps[key.toLowerCase()] === true
+  );
+}
+
+export async function searchAvailableNumbers(countryCode: string, limit: number = 5): Promise<AvailableNumberToPurchase[]> {
   if (!client) {
     console.log("Twilio client not available");
     return [];
   }
 
   try {
-    // Filtres basés sur les colonnes visibles dans la console Twilio :
-    // Capabilities (Voice/SMS/MMS/Fax) + Address Requirement + Type
     const searchParams: Record<string, any> = {
-      smsEnabled: true,   // Colonne SMS — obligatoire pour les deux pays
-      limit: limit * 3,   // On récupère plus pour compenser les filtres stricts
+      smsEnabled: true,
+      limit: limit * 4,   // marge supplémentaire car le filtre capabilities est strict
     };
 
     if (countryCode === "US" || countryCode === "CA") {
-      // USA / Canada : MMS supporté + exclure les numéros qui nécessitent une adresse
       searchParams.mmsEnabled = true;
       searchParams.excludeAllAddressRequired = true;
     }
@@ -177,8 +189,6 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
     let rawNumbers: any[] = [];
 
     if (countryCode === "FR") {
-      // France : essayer Mobile d'abord (+336xx/+337xx), fallback sur Local (+33939xxx)
-      // On mémorise le type trouvé pour l'achat
       try {
         const mobileList = await client.availablePhoneNumbers(countryCode).mobile.list(searchParams);
         if (mobileList.length > 0) {
@@ -197,25 +207,56 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       rawNumbers = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
     }
 
-    // Filtre : SMS obligatoire. MMS uniquement exigé pour les USA (les numéros FR mobile ne supportent pas MMS).
+    console.log(`[Twilio] ${countryCode} — ${rawNumbers.length} candidat(s) bruts reçus de Twilio`);
+
+    // Filtre strict sur les capabilities en lisant les clés uppercase ET lowercase
     const filtered = rawNumbers.filter((num: any) => {
-      if (num.capabilities && typeof num.capabilities.sms !== "undefined") {
-        if (!num.capabilities.sms) return false;
-        if (countryCode === "US" && !num.capabilities.mms) return false;
-        return true;
+      const caps = num.capabilities;
+      const hasCaps = caps && typeof caps === "object";
+
+      // Lecture SMS : accepté si vrai en minuscule OU majuscule
+      const smsOk = hasCaps ? readCap(caps, "sms") : false;
+      // MMS requis pour USA et Canada
+      const mmsRequired = countryCode === "US" || countryCode === "CA";
+      const mmsOk = hasCaps ? readCap(caps, "mms") : false;
+
+      if (!hasCaps) {
+        // Pas d'objet capabilities du tout — on log et on rejette par prudence
+        console.warn(`[Twilio] ${num.phoneNumber} rejeté — pas de données capabilities.`);
+        return false;
+      }
+      if (!smsOk) {
+        console.warn(`[Twilio] ${num.phoneNumber} rejeté — SMS non confirmé (caps: ${JSON.stringify(caps)})`);
+        return false;
+      }
+      if (mmsRequired && !mmsOk) {
+        console.warn(`[Twilio] ${num.phoneNumber} rejeté — MMS non confirmé pour ${countryCode} (caps: ${JSON.stringify(caps)})`);
+        return false;
       }
       return true;
     });
 
+    console.log(`[Twilio] ${countryCode} — ${filtered.length}/${rawNumbers.length} candidat(s) retenu(s) après filtre capabilities`);
+
+    const mmsSupported = countryCode === "US" || countryCode === "CA";
     const results = filtered.slice(0, limit);
 
     if (results.length === 0 && rawNumbers.length > 0) {
-      // Fallback : si MMS strict élimine tout, prendre SMS seul
-      console.log(`[Twilio] Aucun numéro SMS+MMS disponible pour ${countryCode}, fallback SMS uniquement`);
-      return rawNumbers.slice(0, limit).map((num: any) => mapNumber(num, false));
+      // Fallback uniquement si le filtre MMS est trop strict — on garde au moins le SMS
+      if (mmsRequired) {
+        const smsOnly = rawNumbers.filter((num: any) => {
+          const caps = num.capabilities;
+          return caps && typeof caps === "object" && readCap(caps, "sms");
+        }).slice(0, limit);
+        if (smsOnly.length > 0) {
+          console.log(`[Twilio] Fallback SMS-uniquement : ${smsOnly.length} numéro(s) pour ${countryCode}`);
+          return smsOnly.map((num: any) => mapNumber(num, false));
+        }
+      }
+      console.warn(`[Twilio] Aucun numéro SMS valide trouvé pour ${countryCode} après filtre capabilities.`);
+      return [];
     }
 
-    const mmsSupported = countryCode === "US" || countryCode === "CA";
     return results.map((num: any) => mapNumber(num, mmsSupported));
   } catch (error) {
     console.error("Error searching available numbers:", error);
@@ -225,18 +266,21 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
 
 function mapNumber(num: any, mmsCapable: boolean): AvailableNumberToPurchase {
   const caps = num.capabilities || {};
-  // addressRequirements : "none" | "any" | "local" | "foreign"
   const addrReq = num.addressRequirements ?? "none";
+  // Lecture robuste : clés uppercase (SMS, MMS) ou lowercase (sms, mms) selon le contexte Twilio
+  const smsOk = readCap(caps, "sms");
+  const mmsOk = mmsCapable && readCap(caps, "mms");
+  const voiceOk = readCap(caps, "voice");
   return {
     phoneNumber: num.phoneNumber,
     friendlyName: num.friendlyName,
     locality: num.locality || "",
     region: num.region || "",
     isoCountry: num.isoCountry,
-    smsCapable: true,                              // garanti par smsEnabled:true
-    mmsCapable,                                    // garanti par mmsEnabled:true ou fallback
-    voiceCapable: caps.voice !== false,            // Voice presque toujours true
-    addressRequired: addrReq !== "none",           // Colonne "Address Requirement"
+    smsCapable: smsOk,
+    mmsCapable: mmsOk,
+    voiceCapable: voiceOk,
+    addressRequired: addrReq !== "none",
   };
 }
 
