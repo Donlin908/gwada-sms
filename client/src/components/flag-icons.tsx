@@ -2,6 +2,20 @@ interface FlagIconProps {
   className?: string;
 }
 
+export function CanadaFlag({ className = "h-5 w-5" }: FlagIconProps) {
+  return (
+    <svg viewBox="0 0 640 480" className={className} aria-label="Canada">
+      <rect width="640" height="480" fill="#fff" />
+      <rect width="160" height="480" fill="#d80621" />
+      <rect x="480" width="160" height="480" fill="#d80621" />
+      <polygon
+        points="320,90 335,148 393,134 360,170 382,234 320,200 258,234 280,170 247,134 305,148"
+        fill="#d80621"
+      />
+    </svg>
+  );
+}
+
 export function FranceFlag({ className = "h-5 w-5" }: FlagIconProps) {
   return (
     <svg viewBox="0 0 640 480" className={className} aria-label="France">

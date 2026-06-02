@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { type PhoneNumberResponse } from "@shared/schema";
-import { FranceFlag, UsaFlag } from "./flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "./flag-icons";
 
 interface NumberCardProps {
   phoneNumber: PhoneNumberResponse;
@@ -21,8 +21,8 @@ export function NumberCard({ phoneNumber, planId }: NumberCardProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const CountryFlag = phoneNumber.country === "france" ? FranceFlag : UsaFlag;
-  const countryName = phoneNumber.country === "france" ? "France" : "États-Unis";
+  const CountryFlag = phoneNumber.country === "france" ? FranceFlag : phoneNumber.country === "canada" ? CanadaFlag : UsaFlag;
+  const countryName = phoneNumber.country === "france" ? "France" : phoneNumber.country === "canada" ? "Canada" : "États-Unis";
 
   const isUnavailable = !phoneNumber.isAvailable || !phoneNumber.isValid;
 

@@ -27,7 +27,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-export type Country = "france" | "usa";
+export type Country = "france" | "usa" | "canada";
 
 export const phoneNumbers = pgTable("phone_numbers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

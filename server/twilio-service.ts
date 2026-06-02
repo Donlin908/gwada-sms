@@ -168,8 +168,8 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       limit: limit * 3,   // On récupère plus pour compenser les filtres stricts
     };
 
-    if (countryCode === "US") {
-      // USA : MMS supporté + exclure les numéros qui nécessitent une adresse (Address Requirement: None)
+    if (countryCode === "US" || countryCode === "CA") {
+      // USA / Canada : MMS supporté + exclure les numéros qui nécessitent une adresse
       searchParams.mmsEnabled = true;
       searchParams.excludeAllAddressRequired = true;
     }
@@ -215,7 +215,7 @@ export async function searchAvailableNumbers(countryCode: "FR" | "US", limit: nu
       return rawNumbers.slice(0, limit).map((num: any) => mapNumber(num, false));
     }
 
-    const mmsSupported = countryCode === "US";
+    const mmsSupported = countryCode === "US" || countryCode === "CA";
     return results.map((num: any) => mapNumber(num, mmsSupported));
   } catch (error) {
     console.error("Error searching available numbers:", error);

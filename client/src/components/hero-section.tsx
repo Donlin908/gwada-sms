@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { ArrowRight, Clock, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FranceFlag, UsaFlag } from "./flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "./flag-icons";
 
 export function HeroSection() {
   return (
@@ -22,7 +22,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl" data-testid="text-hero-description">
-            Numéros français et américains disponibles pour recevoir vos codes de vérification.
+            Numéros français, américains et canadiens disponibles pour recevoir vos codes de vérification.
             <br />
             <span className="font-medium">Service accessible depuis la Guadeloupe et les DOM.</span>
             <br />
@@ -43,6 +43,13 @@ export function HeroSection() {
               <Button size="lg" variant="outline" className="gap-2" data-testid="button-usa">
                 <UsaFlag className="h-5 w-5" />
                 Numéro États-Unis
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/numbers?country=canada">
+              <Button size="lg" variant="outline" className="gap-2" data-testid="button-canada">
+                <CanadaFlag className="h-5 w-5" />
+                Numéro Canada
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>

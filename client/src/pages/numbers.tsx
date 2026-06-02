@@ -26,7 +26,7 @@ export default function Numbers() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const country = params.get("country") as Country;
-    if (country && (country === "france" || country === "usa")) {
+    if (country && (country === "france" || country === "usa" || country === "canada")) {
       setSelectedCountry(country);
     }
   }, []);

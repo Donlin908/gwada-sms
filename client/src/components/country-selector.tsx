@@ -1,5 +1,5 @@
 import { type Country } from "@shared/schema";
-import { FranceFlag, UsaFlag } from "./flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "./flag-icons";
 
 interface CountrySelectorProps {
   selected: Country;
@@ -32,6 +32,18 @@ export function CountrySelector({ selected, onChange }: CountrySelectorProps) {
       >
         <UsaFlag className="h-5 w-5" />
         États-Unis
+      </button>
+      <button
+        onClick={() => onChange("canada")}
+        className={`flex items-center gap-2 rounded-md border px-4 py-2.5 text-sm font-medium transition-colors ${
+          selected === "canada"
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-card text-foreground hover-elevate"
+        }`}
+        data-testid="button-select-canada"
+      >
+        <CanadaFlag className="h-5 w-5" />
+        Canada
       </button>
     </div>
   );

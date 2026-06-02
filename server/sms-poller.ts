@@ -53,7 +53,7 @@ async function pollOnce(): Promise<void> {
           .catch(err => console.error("[SMS Poller] notifySmsReceived:", err.message));
 
         if (r.telegramChatId) {
-          const flag = r.country === "france" ? "🇫🇷" : "🇺🇸";
+          const flag = r.country === "france" ? "🇫🇷" : r.country === "canada" ? "🇨🇦" : "🇺🇸";
           const text =
             `📩 <b>Nouveau SMS reçu</b>\n` +
             `Sur votre numéro : ${flag} <code>${r.number}</code>\n` +

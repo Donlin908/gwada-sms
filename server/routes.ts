@@ -29,7 +29,7 @@ const adminSettingsSchema = z.object({
 });
 
 const purchaseNumberSchema = z.object({
-  country: z.enum(["france", "usa"]),
+  country: z.enum(["france", "usa", "canada"]),
 });
 
 const adminLoginSchema = z.object({
@@ -330,8 +330,8 @@ export async function registerRoutes(
   app.get("/api/numbers", async (req, res) => {
     try {
       const country = (req.query.country as Country) || "france";
-      if (country !== "france" && country !== "usa") {
-        return res.status(400).json({ error: "Invalid country. Use 'france' or 'usa'." });
+      if (country !== "france" && country !== "usa" && country !== "canada") {
+        return res.status(400).json({ error: "Invalid country. Use 'france', 'usa' or 'canada'." });
       }
       
       await storage.expireOldReservations();
@@ -460,7 +460,7 @@ export async function registerRoutes(
 
             // Notification Client (si activée)
             if (userChatId) {
-              const flag = phoneNumber.country === "france" ? "🇫🇷" : "🇺🇸";
+              const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
               const text = `📩 <b>Nouveau SMS reçu</b>\n` +
                 `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
                 `De : <code>${msg.from}</code>\n` +
@@ -888,7 +888,7 @@ export async function registerRoutes(
       
       const { country } = parseResult.data;
       
-      const countryCode = country === "france" ? "FR" : "US";
+      const countryCode = country === "france" ? "FR" : country === "canada" ? "CA" : "US";
       const available = await twilioService.searchAvailableNumbers(countryCode, 5);
       const smsCandidate = available.find(n => n.smsCapable);
 
@@ -1421,7 +1421,7 @@ export async function registerRoutes(
           }
 
           try {
-            const countryCode = countryArg === "france" ? "FR" : "US";
+            const countryCode = countryArg === "france" ? "FR" : countryArg === "canada" ? "CA" : "US";
             const available = await twilioService.searchAvailableNumbers(countryCode, 5);
             const candidate = available.find((n: any) => n.smsCapable);
 
@@ -1446,7 +1446,7 @@ export async function registerRoutes(
               isValid: true,
             });
 
-            const flag = countryArg === "france" ? "🇫🇷" : "🇺🇸";
+            const flag = countryArg === "france" ? "🇫🇷" : countryArg === "canada" ? "🇨🇦" : "🇺🇸";
             await tgSend(chatId,
               `✅ <b>Numéro acheté avec succès !</b>\n\n` +
               `${flag} <code>${purchased.phoneNumber}</code>\n` +

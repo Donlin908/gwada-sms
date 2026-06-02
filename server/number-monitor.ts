@@ -78,7 +78,7 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
   const allNumbers = await storage.getAllPhoneNumbers();
   const purchasedNumbers: string[] = [];
   
-  for (const country of ["france", "usa"] as Country[]) {
+  for (const country of ["france", "usa", "canada"] as Country[]) {
     const validAvailableNumbers = allNumbers.filter(
       n => n.country === country && n.isValid && n.isAvailable
     );
@@ -87,7 +87,7 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
       const needed = minPerCountry - validAvailableNumbers.length;
       console.log(`[Monitor] ${country.toUpperCase()} : ${validAvailableNumbers.length}/${minPerCountry} disponibles. Tentative d'achat de 1 numéro.`);
       
-      const countryCode = country === "france" ? "FR" : "US";
+      const countryCode = country === "france" ? "FR" : country === "canada" ? "CA" : "US";
 
       if (country === "france") {
         const bundleBlocked = await storage.getSetting("france_bundle_required");
