@@ -296,7 +296,7 @@ export function startMonitoring(intervalMs: number = 60000): void {
   
   console.log(`Starting monitoring with ${intervalMs}ms interval`);
   
-  setTimeout(() => runMonitoringCycle().catch(console.error), 10000);
+  setTimeout(() => runMonitoringCycle().catch(console.error), 120000);
   
   monitoringInterval = setInterval(() => {
     runMonitoringCycle().catch(console.error);

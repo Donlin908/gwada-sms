@@ -32,10 +32,12 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
+args = "NODE_ENV=production node dist/index.cjs"
 
 [agent]
 integrations = ["stripe:2.0.0", "javascript_stripe:1.0.0", "javascript_log_in_with_replit:2.0.0"]
@@ -48,8 +50,9 @@ SMTP_PORT = "587"
 SMTP_USER = "dl.pdf971@gmail.com"
 ADMIN_EMAIL = "dl.pdf971@gmail.com"
 STRIPE_PUBLISHABLE_KEY = "pk_test_51T45Q3CvUJHVsIHmyE5bcGfJ7qeNugtQAf5U8D63FLWzrQFDy4njVGDtYSNjsRkXF6m6qpZchWGNOxQ5ICjP00UP00L5h9TAiI"
-STRIPE_PUBLISHABLE_KEY_LIVE = "pk_live_51T45PeCrNdTLpg22kmaKqr5Na0Of9ANhJ6gJ6spvIWwXuwPI3qrqZnUGxmG0dME9xUoTaBhGM5psDBojviRaVEJJ00MMUVjZ2I"
+STRIPE_PUBLISHABLE_KEY_LIVE = "pk_live_51TdyFICi3VTHILCdBidq22FfGYJUHLupT1KZKvvtZkqufPJldMNUmfAsuk1uvHBxCS0QOKVgZ6aNh0oyBu9sAGPf00XCLu3IuI"
 TWILIO_ADDRESS_SID = "AD1694b3fcdd4dfee2ffd65f11832d1a7c"
+STRIPE_WEBHOOK_SECRET = "whsec_l72s5B9AmSKEVR3pP72OoNFLMKqLBpCe"
 
 [postMerge]
 path = "scripts/post-merge.sh"

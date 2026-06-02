@@ -71,35 +71,18 @@ async function initStripe() {
     return;
   }
 
+  // Skip heavy migrations in development — only run in production
+  if (process.env.NODE_ENV !== 'production' && process.env.REPLIT_DEPLOYMENT !== '1') {
+    console.log('[Stripe] Skipping schema migrations in dev mode');
+    return;
+  }
+
   try {
     console.log('Initializing Stripe schema...');
     await runMigrations({ databaseUrl });
     console.log('Stripe schema ready');
-
-    const stripeSync = await getStripeSync();
-
-    const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
-    if (replitDomain) {
-      console.log('Setting up managed webhook...');
-      const webhookBaseUrl = `https://${replitDomain}`;
-      try {
-        const { webhook } = await stripeSync.findOrCreateManagedWebhook(
-          `${webhookBaseUrl}/api/stripe/webhook`
-        );
-        console.log(`Webhook configured: ${webhook?.url || 'created'}`);
-      } catch (webhookError) {
-        console.log('Webhook setup skipped (will be set up on first request)');
-      }
-    } else {
-      console.log('No domain available, webhook will be set up later');
-    }
-
-    console.log('Syncing Stripe data...');
-    stripeSync.syncBackfill()
-      .then(() => console.log('Stripe data synced'))
-      .catch((err: Error) => console.error('Error syncing Stripe data:', err));
   } catch (error) {
-    console.error('Failed to initialize Stripe:', error);
+    console.error('Failed to initialize Stripe schema:', error);
   }
 }
 
@@ -238,26 +221,46 @@ async function main() {
 
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
+  } else {
+    // Placeholder so GET / returns HTTP 200 immediately when port opens.
+    // Vite will replace this handler once it finishes compiling.
+    app.get("/", (_req, res, next) => {
+      if ((app as any)._viteReady) return next();
+      res.status(200).send("<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2'><title>Démarrage…</title></head><body>Démarrage du serveur…</body></html>");
+    });
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-      ensureSessionTable().catch(console.error);
-      initStripe().catch(console.error);
-      setupTelegramWebhook().catch(console.error);
-      if (process.env.NODE_ENV !== "production") {
-        import("./vite").then(({ setupVite }) => setupVite(httpServer, app)).catch(console.error);
-      }
-    },
-  );
+  httpServer.listen(port, "0.0.0.0", () => {
+    log(`serving on port ${port}`);
+    ensureSessionTable().catch(console.error);
+    setupTelegramWebhook().catch(console.error);
+    // Delay Stripe init so it doesn't block the event loop at startup
+    setTimeout(() => {
+      initStripe().catch((err) => console.error('Stripe init error:', err));
+    }, 5000);
+    // Set up Vite async — port is already open so workflow health-check passes
+    if (process.env.NODE_ENV !== "production") {
+      import("./vite").then(({ setupVite }) => {
+        return setupVite(httpServer, app);
+      }).then(() => {
+        (app as any)._viteReady = true;
+        log("Vite ready");
+      }).catch((err) => {
+        console.error("Vite setup error (non-fatal):", err?.message || err);
+      });
+    }
+  });
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRASH] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[CRASH] Uncaught Exception:', err);
+});
+
 
 main().catch((err) => {
   console.error("Failed to start server:", err);
