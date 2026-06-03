@@ -31,6 +31,9 @@ import {
   Copy,
   Link2,
   Star,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
   Trash2
 } from "lucide-react";
 
@@ -1351,11 +1354,70 @@ interface AdminReservation {
   telegramLink: string | null;
 }
 
+interface AdminSmsMessage {
+  id: string;
+  phoneNumberId: string;
+  sender: string;
+  content: string;
+  receivedAt: string;
+}
+
+function AdminReservationSms({ phoneNumberId }: { phoneNumberId: string }) {
+  const { data: messages = [], isLoading } = useQuery<AdminSmsMessage[]>({
+    queryKey: ["/api/messages", phoneNumberId],
+    refetchInterval: 30000,
+  });
+
+  return (
+    <div className="border-t bg-background/60 p-3 space-y-2" data-testid={`panel-sms-${phoneNumberId}`}>
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <Inbox className="h-4 w-4" />
+        SMS reçus
+        <span className="text-xs font-normal">(actualisé toutes les 30s)</span>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : messages.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-3 text-center" data-testid={`text-no-sms-${phoneNumberId}`}>
+          Aucun SMS reçu pour le moment.
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto">
+          {messages.map(msg => (
+            <div
+              key={msg.id}
+              className="p-2.5 rounded-lg border bg-card text-sm"
+              data-testid={`sms-message-${msg.id}`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="font-mono text-xs font-semibold" data-testid={`sms-sender-${msg.id}`}>
+                  {msg.sender}
+                </span>
+                <span className="text-xs text-muted-foreground" data-testid={`sms-time-${msg.id}`}>
+                  {new Date(msg.receivedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                </span>
+              </div>
+              <p className="text-foreground break-words" data-testid={`sms-content-${msg.id}`}>
+                {msg.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
   const { toast } = useToast();
   const [selectedCountry, setSelectedCountry] = useState<"france" | "usa">("france");
   const [selectedNumberId, setSelectedNumberId] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<"daily" | "weekly" | "monthly">("monthly");
+  const [expandedSmsId, setExpandedSmsId] = useState<string | null>(null);
 
   const { data: myReservations = [], isLoading: reservationsLoading, refetch: refetchReservations } = useQuery<AdminReservation[]>({
     queryKey: ["/api/admin/my-reservations"],
@@ -1445,49 +1507,69 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
             {myReservations.map(r => (
               <div
                 key={r.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 border rounded-lg bg-primary/5"
+                className="border rounded-lg bg-primary/5 overflow-hidden"
                 data-testid={`card-admin-reservation-${r.id}`}
               >
-                <div className="flex-1 space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold">{r.number}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {r.country === "france" ? "🇫🇷 France" : "🇺🇸 USA"}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs">{planLabels[r.planId] ?? r.planId}</Badge>
-                    <Badge variant="default" className="text-xs bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">Admin</Badge>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3">
+                  <div className="flex-1 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-semibold">{r.number}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {r.country === "france" ? "🇫🇷 France" : r.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">{planLabels[r.planId] ?? r.planId}</Badge>
+                      <Badge variant="default" className="text-xs bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">Admin</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Expire le {new Date(r.expiresAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
+                    {r.telegramConnected && (
+                      <p className="text-xs text-green-600 dark:text-green-400 font-medium">✅ Telegram connecté</p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Expire le {new Date(r.expiresAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
-                  </p>
-                  {r.telegramConnected && (
-                    <p className="text-xs text-green-600 dark:text-green-400 font-medium">✅ Telegram connecté</p>
-                  )}
+                  <div className="flex gap-2 shrink-0 flex-wrap">
+                    <Button
+                      variant={expandedSmsId === r.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setExpandedSmsId(expandedSmsId === r.id ? null : r.id)}
+                      data-testid={`button-toggle-sms-${r.id}`}
+                      title="Voir les SMS reçus sur ce numéro"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Voir les SMS
+                      {expandedSmsId === r.id ? (
+                        <ChevronUp className="h-4 w-4 ml-1" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => getTelegramLinkMutation.mutate(r.id)}
+                      disabled={getTelegramLinkMutation.isPending}
+                      data-testid={`button-telegram-link-${r.id}`}
+                      title="Obtenir le lien Telegram pour recevoir les SMS"
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      {r.telegramConnected ? "Lien Telegram" : "Connecter Telegram"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => releaseMutation.mutate(r.id)}
+                      disabled={releaseMutation.isPending}
+                      data-testid={`button-release-${r.id}`}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Libérer
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => getTelegramLinkMutation.mutate(r.id)}
-                    disabled={getTelegramLinkMutation.isPending}
-                    data-testid={`button-telegram-link-${r.id}`}
-                    title="Obtenir le lien Telegram pour recevoir les SMS"
-                  >
-                    <Send className="h-4 w-4 mr-1" />
-                    {r.telegramConnected ? "Lien Telegram" : "Connecter Telegram"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => releaseMutation.mutate(r.id)}
-                    disabled={releaseMutation.isPending}
-                    data-testid={`button-release-${r.id}`}
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    Libérer
-                  </Button>
-                </div>
+                {expandedSmsId === r.id && (
+                  <AdminReservationSms phoneNumberId={r.phoneNumberId} />
+                )}
               </div>
             ))}
           </div>
