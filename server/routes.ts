@@ -1651,47 +1651,33 @@ export async function registerRoutes(
   });
 
   app.get("/api/stripe/products", async (req, res) => {
-    try {
-      const result = await db.execute(sql`
-        SELECT 
-          p.id as product_id,
-          p.name as product_name,
-          p.description as product_description,
-          p.metadata as product_metadata,
-          pr.id as price_id,
-          pr.unit_amount,
-          pr.currency
-        FROM stripe.products p
-        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        WHERE p.active = true
-        ORDER BY pr.unit_amount ASC
-      `);
-      
-      const productsMap = new Map();
-      for (const row of result.rows as any[]) {
-        if (!productsMap.has(row.product_id)) {
-          productsMap.set(row.product_id, {
-            id: row.product_id,
-            name: row.product_name,
-            description: row.product_description,
-            metadata: row.product_metadata,
-            prices: []
-          });
-        }
-        if (row.price_id) {
-          productsMap.get(row.product_id).prices.push({
-            id: row.price_id,
-            unit_amount: row.unit_amount,
-            currency: row.currency,
-          });
-        }
-      }
-
-      res.json({ products: Array.from(productsMap.values()) });
-    } catch (error) {
-      console.error("Error fetching Stripe products:", error);
-      res.json({ products: [] });
-    }
+    // Plans fixes — les price IDs correspondent aux prix créés dans le dashboard Stripe.
+    // La table stripe.products (Replit integration) est vide ; on retourne directement
+    // les données statiques pour ne pas bloquer le paiement.
+    const products = [
+      {
+        id: "prod_daily",
+        name: "Basique 24h",
+        description: "Accès à un numéro virtuel pendant 24 heures",
+        metadata: { planId: "daily" },
+        prices: [{ id: "price_1T4SndCvUJHVsIHmu06e2w6P", unit_amount: 200, currency: "eur" }],
+      },
+      {
+        id: "prod_weekly",
+        name: "Standard 7 jours",
+        description: "Accès à un numéro virtuel pendant 7 jours",
+        metadata: { planId: "weekly" },
+        prices: [{ id: "price_1T4SndCvUJHVsIHmOlwzLsF6", unit_amount: 500, currency: "eur" }],
+      },
+      {
+        id: "prod_monthly",
+        name: "Premium 30 jours",
+        description: "Accès à un numéro virtuel pendant 30 jours",
+        metadata: { planId: "monthly" },
+        prices: [{ id: "price_1T4SneCvUJHVsIHmPFJd4YeW", unit_amount: 900, currency: "eur" }],
+      },
+    ];
+    res.json({ products });
   });
 
   const checkoutSchema = z.object({
