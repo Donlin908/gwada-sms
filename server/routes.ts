@@ -424,6 +424,25 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/numbers/:id/active-reservation", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const reservation = await storage.getActiveReservation(id);
+      if (!reservation) return res.json(null);
+      res.json({
+        id: reservation.id,
+        phoneNumberId: reservation.phoneNumberId,
+        planId: reservation.planId,
+        expiresAt: reservation.expiresAt,
+        isActive: reservation.isActive,
+        telegramChatId: reservation.telegramChatId,
+        telegramToken: reservation.telegramToken,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reservation" });
+    }
+  });
+
   app.get("/api/messages/:phoneNumberId", async (req, res) => {
     try {
       const { phoneNumberId } = req.params;

@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type PhoneNumberResponse, type SmsMessageResponse } from "@shared/schema";
-import { FranceFlag, UsaFlag } from "@/components/flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,7 +55,13 @@ export default function Messages() {
     queryKey: ["/api/user/reservations"],
   });
 
-  const reservation = userReservations?.find((r: any) => r.phoneNumberId === id && r.isActive);
+  // Fallback : réservation active directement sur ce numéro (si non connecté ou session guest)
+  const { data: directReservation } = useQuery<any>({
+    queryKey: [`/api/numbers/${id}/active-reservation`],
+    enabled: !!id && id !== "null",
+  });
+
+  const reservation = userReservations?.find((r: any) => r.phoneNumberId === id && r.isActive) ?? directReservation;
 
   const { data: telegramLinkData, refetch: refetchTelegramLink } = useQuery<{ deepLink: string; token: string; connected: boolean }>({
     queryKey: [`/api/reservations/${reservation?.id}/telegram-link`],
@@ -80,8 +86,8 @@ export default function Messages() {
     if (reservation?.id) refetchTelegramLink();
   };
 
-  const CountryFlag = phoneNumber?.country === "france" ? FranceFlag : UsaFlag;
-  const countryName = phoneNumber?.country === "france" ? "France" : "États-Unis";
+  const CountryFlag = phoneNumber?.country === "france" ? FranceFlag : phoneNumber?.country === "canada" ? CanadaFlag : UsaFlag;
+  const countryName = phoneNumber?.country === "france" ? "France" : phoneNumber?.country === "canada" ? "Canada" : "États-Unis";
 
   if (isLoadingNumber) {
     return (

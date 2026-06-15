@@ -96,13 +96,14 @@ export async function check48hPaymentAlert(): Promise<void> {
   const limit48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
   try {
-    const stripe = await getUncachableStripeClient();
-    const recent = await stripe.paymentIntents.list({
-      limit: 1,
-      created: { gte: Math.floor(limit48h.getTime() / 1000) },
-    });
+    // Vérifie dans notre DB — plus fiable que l'API Stripe (évite les problèmes de clé test/live)
+    const recentReservations = await db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(sql`${reservations.createdAt} >= ${limit48h.toISOString()}`)
+      .limit(1);
 
-    const hasRecentPayment = recent.data.some(p => p.status === "succeeded");
+    const hasRecentPayment = recentReservations.length > 0;
 
     if (!hasRecentPayment) {
       last48hAlertDay = today;
