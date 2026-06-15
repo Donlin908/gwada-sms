@@ -1,0 +1,1 @@
+- [Stripe test/live separation](stripe-config.md) — price IDs live sur acct_1TdyFICi3VTHILCd ; REPLIT_DEPLOYMENT=1 en prod
