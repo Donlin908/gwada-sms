@@ -44,6 +44,42 @@ declare module "express-session" {
   }
 }
 
+const CANADA_AREA_CODES = new Set([
+  "204","226","236","249","250","289","306","343","365","387",
+  "403","416","418","431","437","438","450","506","514","519",
+  "548","579","581","587","604","613","639","647","705","709",
+  "742","778","780","782","807","819","825","867","873","902","905",
+]);
+
+async function fixCanadaCountry() {
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const result = await client.query(
+      `SELECT id, number FROM phone_numbers WHERE country = 'usa' AND number LIKE '+1%'`
+    );
+    let fixed = 0;
+    for (const row of result.rows) {
+      const areaCode = (row.number as string).substring(2, 5);
+      if (CANADA_AREA_CODES.has(areaCode)) {
+        await client.query(
+          `UPDATE phone_numbers SET country = 'canada' WHERE id = $1`,
+          [row.id]
+        );
+        fixed++;
+        console.log(`[Migration] Fixed country for ${row.number}: usa → canada`);
+      }
+    }
+    if (fixed > 0) {
+      console.log(`[Migration] Corrected ${fixed} Canadian number(s) stored as usa`);
+    }
+  } catch (err) {
+    console.error('[Migration] fixCanadaCountry failed:', err);
+  } finally {
+    await client.end();
+  }
+}
+
 async function ensureSessionTable() {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
   try {
@@ -234,6 +270,7 @@ async function main() {
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
     ensureSessionTable().catch(console.error);
+    fixCanadaCountry().catch(console.error);
     setupTelegramWebhook().catch(console.error);
     // Delay Stripe init so it doesn't block the event loop at startup
     setTimeout(() => {
