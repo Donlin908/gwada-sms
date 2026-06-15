@@ -1660,21 +1660,21 @@ export async function registerRoutes(
         name: "Basique 24h",
         description: "Accès à un numéro virtuel pendant 24 heures",
         metadata: { planId: "daily" },
-        prices: [{ id: "price_1T4SndCvUJHVsIHmu06e2w6P", unit_amount: 200, currency: "eur" }],
+        prices: [{ id: "price_1Tih0c07m0Ioh0jWUQTYMME7", unit_amount: 200, currency: "eur" }],
       },
       {
         id: "prod_weekly",
         name: "Standard 7 jours",
         description: "Accès à un numéro virtuel pendant 7 jours",
         metadata: { planId: "weekly" },
-        prices: [{ id: "price_1T4SndCvUJHVsIHmOlwzLsF6", unit_amount: 500, currency: "eur" }],
+        prices: [{ id: "price_1Tih0d07m0Ioh0jWdAFAI0UI", unit_amount: 500, currency: "eur" }],
       },
       {
         id: "prod_monthly",
         name: "Premium 30 jours",
         description: "Accès à un numéro virtuel pendant 30 jours",
         metadata: { planId: "monthly" },
-        prices: [{ id: "price_1T4SneCvUJHVsIHmPFJd4YeW", unit_amount: 900, currency: "eur" }],
+        prices: [{ id: "price_1Tih0d07m0Ioh0jWPKex4DGT", unit_amount: 900, currency: "eur" }],
       },
     ];
     res.json({ products });
