@@ -1651,30 +1651,30 @@ export async function registerRoutes(
   });
 
   app.get("/api/stripe/products", async (req, res) => {
-    // Plans fixes — les price IDs correspondent aux prix créés dans le dashboard Stripe.
-    // La table stripe.products (Replit integration) est vide ; on retourne directement
-    // les données statiques pour ne pas bloquer le paiement.
+    // Plans fixes — price IDs séparés test/live.
+    // Test (dev local) : cartes fictives 4242... | Live (site publié) : vraies cartes.
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
     const products = [
       {
-        id: "prod_Ui8RruP3nseyUt",
+        id: isProduction ? "prod_Ui8RruP3nseyUt" : "prod_test_daily",
         name: "Basique 24h",
         description: "Accès à un numéro virtuel pendant 24 heures",
         metadata: { planId: "daily" },
-        prices: [{ id: "price_1TiiAtCi3VTHILCd4WGCDIeA", unit_amount: 200, currency: "eur" }],
+        prices: [{ id: isProduction ? "price_1TiiAtCi3VTHILCd4WGCDIeA" : "price_1TiiPLCvUJHVsIHmUNNilUt9", unit_amount: 200, currency: "eur" }],
       },
       {
-        id: "prod_Ui8RX6ml2dl6Jx",
+        id: isProduction ? "prod_Ui8RX6ml2dl6Jx" : "prod_test_weekly",
         name: "Standard 7 jours",
         description: "Accès à un numéro virtuel pendant 7 jours",
         metadata: { planId: "weekly" },
-        prices: [{ id: "price_1TiiAuCi3VTHILCdPw3P8Ktz", unit_amount: 500, currency: "eur" }],
+        prices: [{ id: isProduction ? "price_1TiiAuCi3VTHILCdPw3P8Ktz" : "price_1TiiPMCvUJHVsIHmsIRfmq17", unit_amount: 500, currency: "eur" }],
       },
       {
-        id: "prod_Ui8RqZaW8c0Bdl",
+        id: isProduction ? "prod_Ui8RqZaW8c0Bdl" : "prod_test_monthly",
         name: "Premium 30 jours",
         description: "Accès à un numéro virtuel pendant 30 jours",
         metadata: { planId: "monthly" },
-        prices: [{ id: "price_1TiiAuCi3VTHILCdCVv9Hv8T", unit_amount: 900, currency: "eur" }],
+        prices: [{ id: isProduction ? "price_1TiiAuCi3VTHILCdCVv9Hv8T" : "price_1TiiPMCvUJHVsIHmJAzZZb4w", unit_amount: 900, currency: "eur" }],
       },
     ];
     res.json({ products });

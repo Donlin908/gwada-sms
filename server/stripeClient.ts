@@ -8,9 +8,10 @@ async function getCredentials() {
   const testPublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
   const livePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY_LIVE;
 
-  // Toujours préférer les clés live si disponibles — les price IDs sont live.
-  const secretKey = liveSecretKey || testSecretKey;
-  const publishableKey = livePublishableKey || testPublishableKey;
+  // Live en production (site publié), test en dev local.
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
+  const secretKey = isProduction ? (liveSecretKey || testSecretKey) : (testSecretKey || liveSecretKey);
+  const publishableKey = isProduction ? (livePublishableKey || testPublishableKey) : (testPublishableKey || livePublishableKey);
 
   if (secretKey && publishableKey) {
     return { publishableKey, secretKey };
