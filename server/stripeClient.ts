@@ -7,10 +7,10 @@ async function getCredentials() {
   const liveSecretKey = process.env.SLACK_LIVE_API_KEY_GWADASMS;
   const testPublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
   const livePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY_LIVE;
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
 
-  const secretKey = isProduction ? (liveSecretKey || testSecretKey) : testSecretKey;
-  const publishableKey = isProduction ? (livePublishableKey || testPublishableKey) : testPublishableKey;
+  // Toujours préférer les clés live si disponibles — les price IDs sont live.
+  const secretKey = liveSecretKey || testSecretKey;
+  const publishableKey = livePublishableKey || testPublishableKey;
 
   if (secretKey && publishableKey) {
     return { publishableKey, secretKey };

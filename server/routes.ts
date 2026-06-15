@@ -1656,25 +1656,25 @@ export async function registerRoutes(
     // les données statiques pour ne pas bloquer le paiement.
     const products = [
       {
-        id: "prod_daily",
+        id: "prod_Ui8RruP3nseyUt",
         name: "Basique 24h",
         description: "Accès à un numéro virtuel pendant 24 heures",
         metadata: { planId: "daily" },
-        prices: [{ id: "price_1Tih0c07m0Ioh0jWUQTYMME7", unit_amount: 200, currency: "eur" }],
+        prices: [{ id: "price_1TiiAtCi3VTHILCd4WGCDIeA", unit_amount: 200, currency: "eur" }],
       },
       {
-        id: "prod_weekly",
+        id: "prod_Ui8RX6ml2dl6Jx",
         name: "Standard 7 jours",
         description: "Accès à un numéro virtuel pendant 7 jours",
         metadata: { planId: "weekly" },
-        prices: [{ id: "price_1Tih0d07m0Ioh0jWdAFAI0UI", unit_amount: 500, currency: "eur" }],
+        prices: [{ id: "price_1TiiAuCi3VTHILCdPw3P8Ktz", unit_amount: 500, currency: "eur" }],
       },
       {
-        id: "prod_monthly",
+        id: "prod_Ui8RqZaW8c0Bdl",
         name: "Premium 30 jours",
         description: "Accès à un numéro virtuel pendant 30 jours",
         metadata: { planId: "monthly" },
-        prices: [{ id: "price_1Tih0d07m0Ioh0jWPKex4DGT", unit_amount: 900, currency: "eur" }],
+        prices: [{ id: "price_1TiiAuCi3VTHILCdCVv9Hv8T", unit_amount: 900, currency: "eur" }],
       },
     ];
     res.json({ products });
