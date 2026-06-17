@@ -124,10 +124,13 @@ async function initStripe() {
 
 async function setupTelegramWebhook() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
-  if (!token || !domain) return;
+  if (!token) return;
+  // Le webhook doit pointer vers le domaine de PRODUCTION, jamais le domaine de
+  // dev (REPLIT_DOMAINS) — sinon le clic « Démarrer » dans Telegram n'atteint
+  // pas le serveur live et la connexion n'est jamais détectée.
+  const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
   try {
-    const webhookUrl = `https://${domain}/api/telegram/webhook`;
+    const webhookUrl = `${baseUrl}/api/telegram/webhook`;
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -271,7 +274,12 @@ async function main() {
     log(`serving on port ${port}`);
     ensureSessionTable().catch(console.error);
     fixCanadaCountry().catch(console.error);
-    setupTelegramWebhook().catch(console.error);
+    // Uniquement en production : évite que le serveur de dev ne détourne le
+    // webhook Telegram vers lui-même (les clics « Démarrer » des vrais clients
+    // doivent toujours arriver sur le serveur live gwadasms.com).
+    if (process.env.NODE_ENV === "production") {
+      setupTelegramWebhook().catch(console.error);
+    }
     // Delay Stripe init so it doesn't block the event loop at startup
     setTimeout(() => {
       initStripe().catch((err) => console.error('Stripe init error:', err));

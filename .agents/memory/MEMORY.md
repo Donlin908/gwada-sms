@@ -1,1 +1,2 @@
 - [Stripe test/live separation](stripe-config.md) — REPLIT_DEPLOYMENT gouverne clé+priceID+compte ensemble ; prix dérivé du planId côté serveur
+- [Public URLs use prod domain](email-links-domain.md) — email/Telegram-webhook/Stripe-redirect URLs must use PUBLIC_URL||gwadasms.com, never REPLIT_DOMAINS; telegram-link must use session/guest auth not isAuthenticated()

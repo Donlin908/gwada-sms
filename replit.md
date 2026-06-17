@@ -6,6 +6,10 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## Recent Changes (2026-06-17)
+
+- **Correction Telegram (réception SMS sur @GwadasmsBot)** : le bouton « Ouvrir @GwadasmsBot » ne s'affichait jamais (spinner infini). Causes : (1) `GET /api/reservations/:id/telegram-link` exigeait `req.isAuthenticated()` (Google OAuth/Passport uniquement) → 401 pour les invités et les comptes email/mot de passe ; aligné sur le contrôle d'accès de `/api/messages` (admin OU `session.userId`/`req.user.id` OU `sessionId` invité). (2) Le frontend (`messages.tsx`) ne transmettait pas le `sessionId` invité dans la requête. (3) `setupTelegramWebhook` (server/index.ts) et les URLs de redirection Stripe utilisaient `REPLIT_DOMAINS` (domaine dev) au lieu de `PUBLIC_URL || https://gwadasms.com` → le clic « Démarrer » n'atteignait jamais le serveur live. `setupTelegramWebhook` ne s'exécute désormais qu'en production pour éviter que le serveur de dev ne détourne le webhook.
+
 ## Recent Changes (2026-03-16)
 
 - **Intégration Sentry (monitoring erreurs)** : Ajout de `@sentry/node` (backend) et `@sentry/react` (frontend) pour capturer automatiquement les erreurs en production. Initialisation dans `server/index.ts` (middlewares HTTP et Express) et `client/src/main.tsx` (avant le rendu React). ErrorBoundary Sentry autour de l'app dans `client/src/App.tsx`. Route de test `/debug-sentry` pour vérifier l'intégration. DSN stocké en secrets d'environnement (`SENTRY_DSN` et `VITE_SENTRY_DSN`).

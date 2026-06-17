@@ -1267,12 +1267,27 @@ export async function registerRoutes(
 
   // Génère un lien Telegram pour une réservation (deep link avec token unique)
   app.get("/api/reservations/:id/telegram-link", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Non authentifié");
     try {
       const { id } = req.params;
       const [reservation] = await db.select().from(reservations).where(eq(reservations.id, id));
-      if (!reservation || reservation.userId !== (req.user as any).id) {
+      if (!reservation) {
         return res.status(404).send("Réservation non trouvée");
+      }
+
+      // Contrôle d'accès cohérent avec /api/messages : admin, OU propriétaire de la
+      // réservation (utilisateur connecté via session.userId ou OAuth req.user.id,
+      // ou invité via son sessionId localStorage). Sans ça, les invités et les
+      // comptes email/mot de passe recevaient un 401 et le bouton Telegram ne
+      // s'affichait jamais (spinner infini).
+      const isAdmin = req.session?.adminAuth === true;
+      if (!isAdmin) {
+        const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+        const loggedInUserId = req.session?.userId || (req.user as any)?.id;
+        const ownsByUser = !!loggedInUserId && reservation.userId === loggedInUserId;
+        const ownsBySession = !!sessionId && reservation.sessionId !== "admin" && reservation.sessionId === sessionId;
+        if (!ownsByUser && !ownsBySession) {
+          return res.status(403).send("Non autorisé");
+        }
       }
 
       // Génère un token unique si pas encore fait
@@ -1386,7 +1401,7 @@ export async function registerRoutes(
           }
 
           const stripe = await getUncachableStripeClient();
-          const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+          const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
           const userSessionId = `tg_${chatId}`;
 
           const stripeSession = await stripe.checkout.sessions.create({
@@ -1471,7 +1486,7 @@ export async function registerRoutes(
           `👋 Bonjour <b>${firstName}</b> !\n\nJe suis le bot de <b>GWADA SMS</b> — votre service de numéros virtuels.\n\n` +
           `📱 <b>Que puis-je faire pour vous ?</b>\n` +
           `• <b>/acheter</b> — Acheter un numéro virtuel directement ici\n` +
-          `• Connectez-vous sur <a href="https://${process.env.REPLIT_DOMAINS?.split(',')[0]}">gwada-sms.com</a> pour activer les notifications SMS\n\n` +
+          `• Connectez-vous sur <a href="${(process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "")}">gwada-sms.com</a> pour activer les notifications SMS\n\n` +
           `💬 Support disponible 7j/7`
         );
 
@@ -1778,7 +1793,7 @@ export async function registerRoutes(
       }
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],

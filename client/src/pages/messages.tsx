@@ -68,7 +68,7 @@ export default function Messages() {
   const reservation = userReservations?.find((r: any) => r.phoneNumberId === id && r.isActive) ?? directReservation;
 
   const { data: telegramLinkData, refetch: refetchTelegramLink } = useQuery<{ deepLink: string; token: string; connected: boolean }>({
-    queryKey: [`/api/reservations/${reservation?.id}/telegram-link`],
+    queryKey: [`/api/reservations/${reservation?.id}/telegram-link?sessionId=${encodeURIComponent(getGuestSessionId())}`],
     enabled: !!reservation?.id && telegramDialogOpen,
     refetchInterval: telegramDialogOpen && !telegramConnected ? 3000 : false,
   });
