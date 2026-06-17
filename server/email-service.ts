@@ -30,8 +30,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     return false;
   }
 
-  const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
-  const baseUrl = replitDomain ? `https://${replitDomain}` : 'http://localhost:5000';
+  const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
   const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
 
   try {

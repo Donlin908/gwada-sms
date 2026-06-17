@@ -107,6 +107,7 @@ export async function registerRoutes(
 
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/resend-verification", authLimiter);
   app.use("/api/admin/login", adminLoginLimiter);
   app.use("/api/stripe/create-checkout-session", paymentLimiter);
   // ─────────────────────────────────────────────────────────────────────────
@@ -286,12 +287,10 @@ export async function registerRoutes(
         user = await storage.getUserByEmail(req.body.email);
       }
 
-      if (!user) {
-        return res.status(404).json({ error: "Utilisateur non trouvé" });
-      }
+      const genericMessage = "Si un compte non vérifié existe pour cet email, un lien de vérification a été envoyé.";
 
-      if (user.emailVerified) {
-        return res.json({ message: "Email déjà vérifié" });
+      if (!user || user.emailVerified) {
+        return res.json({ message: genericMessage });
       }
 
       const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -302,12 +301,9 @@ export async function registerRoutes(
         verificationExpires,
       });
 
-      const sent = await sendVerificationEmail(user.email, verificationToken);
-      if (!sent) {
-        return res.status(500).json({ error: "Impossible d'envoyer l'email. Vérifiez la configuration SMTP." });
-      }
+      await sendVerificationEmail(user.email, verificationToken);
 
-      res.json({ message: "Email de vérification renvoyé" });
+      res.json({ message: genericMessage });
     } catch (error) {
       console.error("Error resending verification:", error);
       res.status(500).json({ error: "Erreur serveur" });
