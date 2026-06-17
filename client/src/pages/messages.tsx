@@ -22,6 +22,10 @@ import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
+function getGuestSessionId(): string {
+  return localStorage.getItem("gwada_session_id") ?? "";
+}
+
 export default function Messages() {
   const { id } = useParams<{ id: string }>();
   const [copied, setCopied] = useState(false);
@@ -35,7 +39,7 @@ export default function Messages() {
   });
 
   const { data: messages, isLoading: isLoadingMessages, refetch, isRefetching } = useQuery<SmsMessageResponse[]>({
-    queryKey: [`/api/messages/${id}`],
+    queryKey: [`/api/messages/${id}?sessionId=${encodeURIComponent(getGuestSessionId())}`],
     refetchInterval: 10000,
     enabled: !!id && id !== "null",
   });

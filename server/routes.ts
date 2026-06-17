@@ -475,6 +475,20 @@ export async function registerRoutes(
       if (!phoneNumber) {
         return res.status(404).json({ error: "Phone number not found" });
       }
+
+      // Contrôle d'accès : le contenu SMS est sensible. Autorisé uniquement pour
+      // l'admin, OU le propriétaire d'une réservation active sur ce numéro
+      // (utilisateur connecté via userId, ou invité via son sessionId localStorage).
+      const isAdmin = req.session?.adminAuth === true;
+      if (!isAdmin) {
+        const reservation = await storage.getActiveReservation(phoneNumberId);
+        const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+        const ownsByUser = !!reservation && !!req.session?.userId && reservation.userId === req.session.userId;
+        const ownsBySession = !!reservation && !!sessionId && reservation.sessionId === sessionId;
+        if (!ownsByUser && !ownsBySession) {
+          return res.status(403).json({ error: "Non autorisé" });
+        }
+      }
       
       if (twilioService.isConfigured()) {
         const twilioMessages = await twilioService.getMessagesForNumber(phoneNumber.number);
