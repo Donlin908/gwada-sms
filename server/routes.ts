@@ -452,14 +452,16 @@ export async function registerRoutes(
       const { id } = req.params;
       const reservation = await storage.getActiveReservation(id);
       if (!reservation) return res.json(null);
+      // Shape minimale et non sensible : ce endpoint est accessible sans auth
+      // (flux invité). On n'expose JAMAIS telegramToken ni telegramChatId bruts —
+      // seulement un booléen indiquant si Telegram est connecté.
       res.json({
         id: reservation.id,
         phoneNumberId: reservation.phoneNumberId,
         planId: reservation.planId,
         expiresAt: reservation.expiresAt,
         isActive: reservation.isActive,
-        telegramChatId: reservation.telegramChatId,
-        telegramToken: reservation.telegramToken,
+        telegramConnected: !!reservation.telegramChatId,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch reservation" });

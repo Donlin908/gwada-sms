@@ -78,8 +78,8 @@ export default function Messages() {
   }, [telegramLinkData?.connected, telegramConnected, queryClient, toast]);
 
   useEffect(() => {
-    if (reservation?.telegramChatId) setTelegramConnected(true);
-  }, [reservation?.telegramChatId]);
+    if (reservation?.telegramChatId || reservation?.telegramConnected) setTelegramConnected(true);
+  }, [reservation?.telegramChatId, reservation?.telegramConnected]);
 
   const handleOpenTelegram = () => {
     setTelegramDialogOpen(true);
