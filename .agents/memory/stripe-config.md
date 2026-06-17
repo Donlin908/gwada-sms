@@ -1,33 +1,25 @@
 ---
 name: Stripe test/live separation
-description: Comment les clés et price IDs Stripe sont organisés dans ce projet
+description: Règles durables pour garder les paiements Stripe cohérents test/live dans ce projet
 ---
 
 ## Règle principale
-Toujours séparer test et live. `REPLIT_DEPLOYMENT === '1'` → live, sinon → test.
+`REPLIT_DEPLOYMENT === '1'` → compte/clés/prix **live**, sinon → **test**. Ce drapeau doit gouverner SIMULTANÉMENT trois choses, sinon ça casse :
+1. La clé secrète/publique (server/stripeClient.ts)
+2. Les price IDs (server/routes.ts → `getStripePriceId`)
+3. Le compte Stripe ciblé
 
-## Clés disponibles
-- `SLACK_LIVE_API_KEY_GWADASMS` — clé secrète live (sk_live_...)
-- `SLACK_TEST_API_KEY_GWADA_SMS` — clé secrète test (sk_test_...)
-- `STRIPE_PUBLISHABLE_KEY_LIVE` — clé publique live (pk_live_...)
-- `STRIPE_PUBLISHABLE_KEY` — clé publique test (pk_test_...)
+**Why:** les price IDs test et live vivent dans des namespaces séparés. Un price ID test envoyé avec une clé live (ou l'inverse) renvoie "No such price" 400 et le paiement échoue. Bug réel déjà rencontré : le bot Telegram avait des price IDs test hardcodés sans split → tous les achats Telegram échouaient en production.
 
-## Price IDs live (compte acct_1TdyFICi3VTHILCd)
-- daily (2€) : price_1TiiAtCi3VTHILCd4WGCDIeA
-- weekly (5€) : price_1TiiAuCi3VTHILCdPw3P8Ktz
-- monthly (9€) : price_1TiiAuCi3VTHILCdCVv9Hv8T
+**How to apply:**
+- Une SEULE source de vérité pour les price IDs (`STRIPE_PRICE_IDS` + `getStripePriceId(planId)` dans routes.ts). Tout endroit qui crée une session checkout (site web, bot Telegram, futurs canaux) doit l'utiliser — jamais de price ID hardcodé local.
+- Sélection des clés STRICTE dans stripeClient.ts : pas de fallback croisé test↔live (sinon clé live + prix test = mismatch).
+- Quand on ajoute/modifie un plan, créer le prix dans LES DEUX comptes (test + live) et l'ajouter aux deux maps.
 
-## Price IDs test
-- daily (2€) : price_1TiiPLCvUJHVsIHmUNNilUt9
-- weekly (5€) : price_1TiiPMCvUJHVsIHmsIRfmq17
-- monthly (9€) : price_1TiiPMCvUJHVsIHmJAzZZb4w
-
-**Why:** Les price IDs test et live sont dans des namespaces séparés — utiliser un price ID test avec la clé live (ou vice versa) donne "No such price" 400.
-
-**How to apply:** Quand on crée/modifie des prix Stripe, toujours créer les deux versions (test + live) et les hardcoder séparément dans routes.ts avec le flag isProduction.
+## Intégrité paiement (sécurité)
+Le serveur doit dériver le prix uniquement à partir d'un `planId` validé (enum daily|weekly|monthly), JAMAIS d'un `priceId` fourni par le client. Sinon un client peut demander un plan cher (durée longue accordée via metadata.planId dans confirm-payment) tout en payant le prix d'un plan moins cher.
 
 ## Test e2e des paiements
-- Le sous-agent de test (runTest/Playwright) affiche un écran blanc "Running" sur l'URL publique replit.dev de cette app — bug d'environnement du navigateur de test, PAS un bug de l'app (screenshot app_preview rend parfaitement).
-- **Stratégie de validation paiement fiable** : (1) valider les price IDs via Stripe API, (2) créer une session checkout via l'endpoint dev (mode test → cs_test_), (3) faire payer la carte 4242 par runTest en partant directement de l'URL checkout.stripe.com, (4) appeler /api/stripe/confirm-payment avec la session payée pour vérifier la création de réservation, (5) screenshot app_preview de /payment/success pour confirmer le rendu réel.
-- Toujours nettoyer après test : DELETE reservation + usage_history (session_id LIKE 'test-e2e-%') + UPDATE phone_numbers SET is_available=true.
-- Mode réel (live) : impossible de tester sans vraie carte ; valider seulement la config (compte live DLCAD&SERV acct_1TdyFICi3VTHILCd, prix actifs). Le test réel doit être fait par l'utilisateur sur le site publié, remboursable depuis le dashboard Stripe.
+- Le sous-agent runTest (Playwright) affiche un écran blanc "Running" sur l'URL publique replit.dev de cette app — bug d'environnement du navigateur de test, PAS un bug de l'app (`screenshot` app_preview rend correctement). Quand ça arrive, valider autrement : API Stripe + appel direct des endpoints + screenshot app_preview.
+- Mode live : impossible à tester sans vraie carte ; valider seulement la config (prix actifs dans le bon compte). Le vrai test se fait par l'utilisateur sur le site publié, remboursable depuis le dashboard Stripe.
+- Toujours nettoyer les données de test après (réservation + usage_history + remettre le numéro disponible).

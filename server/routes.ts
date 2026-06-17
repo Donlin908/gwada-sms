@@ -17,6 +17,29 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 
+// ─── Source unique des ID de prix Stripe (test/live) ──────────────────────────
+// Utilisée par le site web ET le bot Telegram pour garantir que les paiements
+// fonctionnent partout. Test (dev local) : cartes fictives | Live (publié) : vraies cartes.
+type StripePlanId = "daily" | "weekly" | "monthly";
+
+const STRIPE_PRICE_IDS: Record<"test" | "live", Record<StripePlanId, string>> = {
+  test: {
+    daily: "price_1TiiPLCvUJHVsIHmUNNilUt9",
+    weekly: "price_1TiiPMCvUJHVsIHmsIRfmq17",
+    monthly: "price_1TiiPMCvUJHVsIHmJAzZZb4w",
+  },
+  live: {
+    daily: "price_1TiiAtCi3VTHILCd4WGCDIeA",
+    weekly: "price_1TiiAuCi3VTHILCdPw3P8Ktz",
+    monthly: "price_1TiiAuCi3VTHILCdCVv9Hv8T",
+  },
+};
+
+function getStripePriceId(planId: StripePlanId): string {
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
+  return STRIPE_PRICE_IDS[isProduction ? "live" : "test"][planId];
+}
+
 const adminSettingsSchema = z.object({
   usageAlertThreshold: z.number().int().min(1).max(10000).optional(),
   autoPurchaseEnabled: z.boolean().optional(),
@@ -1282,9 +1305,9 @@ export async function registerRoutes(
         await tgAnswer(cq.id);
 
         const PLANS = [
-          { label: "⚡ Basique 24h — 2€", priceId: "price_1T4SndCvUJHVsIHmu06e2w6P", planId: "daily" },
-          { label: "📅 Standard 7 jours — 5€", priceId: "price_1T4SndCvUJHVsIHmOlwzLsF6", planId: "weekly" },
-          { label: "🌟 Premium 30 jours — 9€", priceId: "price_1T4SneCvUJHVsIHmPFJd4YeW", planId: "monthly" },
+          { label: "⚡ Basique 24h — 2€", priceId: getStripePriceId("daily"), planId: "daily" },
+          { label: "📅 Standard 7 jours — 5€", priceId: getStripePriceId("weekly"), planId: "weekly" },
+          { label: "🌟 Premium 30 jours — 9€", priceId: getStripePriceId("monthly"), planId: "monthly" },
         ];
 
         if (data.startsWith("country_")) {
@@ -1679,30 +1702,30 @@ export async function registerRoutes(
         name: "Basique 24h",
         description: "Accès à un numéro virtuel pendant 24 heures",
         metadata: { planId: "daily" },
-        prices: [{ id: isProduction ? "price_1TiiAtCi3VTHILCd4WGCDIeA" : "price_1TiiPLCvUJHVsIHmUNNilUt9", unit_amount: 200, currency: "eur" }],
+        prices: [{ id: getStripePriceId("daily"), unit_amount: 200, currency: "eur" }],
       },
       {
         id: isProduction ? "prod_Ui8RX6ml2dl6Jx" : "prod_test_weekly",
         name: "Standard 7 jours",
         description: "Accès à un numéro virtuel pendant 7 jours",
         metadata: { planId: "weekly" },
-        prices: [{ id: isProduction ? "price_1TiiAuCi3VTHILCdPw3P8Ktz" : "price_1TiiPMCvUJHVsIHmsIRfmq17", unit_amount: 500, currency: "eur" }],
+        prices: [{ id: getStripePriceId("weekly"), unit_amount: 500, currency: "eur" }],
       },
       {
         id: isProduction ? "prod_Ui8RqZaW8c0Bdl" : "prod_test_monthly",
         name: "Premium 30 jours",
         description: "Accès à un numéro virtuel pendant 30 jours",
         metadata: { planId: "monthly" },
-        prices: [{ id: isProduction ? "price_1TiiAuCi3VTHILCdCVv9Hv8T" : "price_1TiiPMCvUJHVsIHmJAzZZb4w", unit_amount: 900, currency: "eur" }],
+        prices: [{ id: getStripePriceId("monthly"), unit_amount: 900, currency: "eur" }],
       },
     ];
     res.json({ products });
   });
 
   const checkoutSchema = z.object({
-    priceId: z.string(),
+    priceId: z.string().optional(), // ignoré — le prix est dérivé du planId côté serveur
     phoneNumberId: z.string(),
-    planId: z.string(),
+    planId: z.enum(["daily", "weekly", "monthly"]),
     sessionId: z.string(),
   });
 
@@ -1713,7 +1736,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid request data" });
       }
 
-      const { priceId, phoneNumberId, planId, sessionId } = parseResult.data;
+      const { phoneNumberId, planId, sessionId } = parseResult.data;
+      // Le prix est dérivé côté serveur à partir du plan — on ignore tout priceId
+      // envoyé par le client pour empêcher de payer un plan cher au tarif d'un plan moins cher.
+      const priceId = getStripePriceId(planId);
 
       const phoneNumber = await storage.getPhoneNumber(phoneNumberId);
       if (!phoneNumber) {

@@ -9,9 +9,11 @@ async function getCredentials() {
   const livePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY_LIVE;
 
   // Live en production (site publié), test en dev local.
+  // Sélection STRICTE : pas de bascule croisée test↔live, sinon les ID de prix
+  // (dérivés du même drapeau isProduction) ne correspondraient plus au compte Stripe.
   const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  const secretKey = isProduction ? (liveSecretKey || testSecretKey) : (testSecretKey || liveSecretKey);
-  const publishableKey = isProduction ? (livePublishableKey || testPublishableKey) : (testPublishableKey || livePublishableKey);
+  const secretKey = isProduction ? liveSecretKey : testSecretKey;
+  const publishableKey = isProduction ? livePublishableKey : testPublishableKey;
 
   if (secretKey && publishableKey) {
     return { publishableKey, secretKey };
