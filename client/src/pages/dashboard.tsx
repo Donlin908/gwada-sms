@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2 } from "lucide-react";
-import { FranceFlag, UsaFlag } from "@/components/flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
 
 interface UserReservation {
   id: string;
@@ -153,7 +153,7 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className="h-8 w-8 flex items-center justify-center">
-                                {r.country === "france" ? <FranceFlag /> : <UsaFlag />}
+                                {r.country === "france" ? <FranceFlag /> : r.country === "canada" ? <CanadaFlag /> : <UsaFlag />}
                               </div>
                               <div>
                                 <CardTitle className="text-lg" data-testid={`text-phone-${r.id}`}>{r.phoneNumber}</CardTitle>
@@ -200,7 +200,7 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className="h-6 w-6 flex items-center justify-center">
-                                {r.country === "france" ? <FranceFlag /> : <UsaFlag />}
+                                {r.country === "france" ? <FranceFlag /> : r.country === "canada" ? <CanadaFlag /> : <UsaFlag />}
                               </div>
                               <div>
                                 <p className="font-medium">{r.phoneNumber}</p>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Phone, Clock, ChevronRight } from "lucide-react";
-import { FranceFlag, UsaFlag } from "@/components/flag-icons";
+import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
 
 interface UserReservation {
   id: string;
@@ -59,7 +59,7 @@ export default function MessagesList() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">
-                            {r.country === "france" ? <FranceFlag /> : <UsaFlag />}
+                            {r.country === "france" ? <FranceFlag /> : r.country === "canada" ? <CanadaFlag /> : <UsaFlag />}
                           </div>
                           <div>
                             <p className="font-mono text-lg font-bold">{r.phoneNumber}</p>
