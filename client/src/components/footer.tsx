@@ -15,7 +15,7 @@ export function Footer() {
             </Link>
             <p className="max-w-md text-sm text-muted-foreground">
               Service de numéros virtuels pour recevoir vos SMS de vérification en France et aux États-Unis. 
-              Rapide, anonyme et sans engagement.
+              Rapide, confidentiel et sans engagement.
             </p>
           </div>
 

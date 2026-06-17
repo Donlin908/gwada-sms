@@ -69,9 +69,9 @@ export function HeroSection() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold" data-testid="text-feature-anonymous">100% Anonyme</h3>
+            <h3 className="font-semibold" data-testid="text-feature-anonymous">Confidentialité garantie</h3>
             <p className="text-sm text-muted-foreground">
-              Aucune inscription requise, vos données restent privées
+              Inscription rapide, seul le minimum d'informations est demandé. Vos données restent privées.
             </p>
           </div>
 
