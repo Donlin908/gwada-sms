@@ -16,6 +16,9 @@ description: Règles durables pour paiements Stripe cohérents et accès aux don
 ## Intégrité du prix
 Le prix se dérive UNIQUEMENT d'un `planId` validé côté serveur (enum), jamais d'un `priceId` envoyé par le client. Sinon un client obtient une longue durée en payant un plan moins cher.
 
+## Reçus vs factures (paiement unique Checkout)
+Le toggle Stripe Dashboard « Reçus de paiements réussis » envoie des REÇUS, pas des FACTURES. Pour un Checkout `mode:'payment'` (paiement unique), Stripe ne génère PAS de facture conforme sans `invoice_creation: { enabled: true }` dans la création de session (code). Le dashboard ne contrôle que la mise en forme (logo, SIREN/TVA). **Why:** conformité SASU exige des factures numérotées ; sans ce flag, aucune facture auto.
+
 ## Accès aux données sensibles (SMS, tokens)
 Les endpoints qui renvoient du contenu SMS ou des identifiants Telegram sont accessibles sans login (flux invité), donc ils sont des cibles IDOR : l'ID de numéro est public.
 

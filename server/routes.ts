@@ -1782,6 +1782,9 @@ export async function registerRoutes(
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: 'payment',
+        // Génère automatiquement une facture Stripe conforme (numérotée, PDF,
+        // envoyée par email) pour chaque paiement unique — requis pour la SASU.
+        invoice_creation: { enabled: true },
         success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&phone_id=${phoneNumberId}&plan_id=${planId}&user_session=${sessionId}`,
         cancel_url: `${baseUrl}/payment/cancel?phone_id=${phoneNumberId}`,
         metadata: {
