@@ -14,8 +14,8 @@ export function Footer() {
               <span className="text-xl font-semibold">GWADA SMS</span>
             </Link>
             <p className="max-w-md text-sm text-muted-foreground">
-              Service de numéros virtuels pour recevoir vos SMS de vérification en France et aux États-Unis. 
-              Rapide, confidentiel et sans engagement.
+              Service de numéros virtuels américains pour recevoir vos SMS de vérification depuis les DOM-TOM.
+              Inscription rapide, paiement sécurisé.
             </p>
           </div>
 
