@@ -64,6 +64,8 @@ const registerSchema = z.object({
   username: z.string().min(3, "Le nom d'utilisateur doit faire au moins 3 caractères"),
   email: z.string().email("Email invalide"),
   password: z.string().min(6, "Le mot de passe doit faire au moins 6 caractères"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -117,7 +119,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: firstError });
       }
 
-      const { username, email, password } = parseResult.data;
+      const { username, email, password, firstName, lastName } = parseResult.data;
 
       const existingEmail = await storage.getUserByEmail(email);
       if (existingEmail) {
@@ -137,6 +139,8 @@ export async function registerRoutes(
         username,
         email,
         password: hashedPassword,
+        firstName: firstName || null,
+        lastName: lastName || null,
       });
 
       await storage.updateUserVerification(user.id, {
@@ -275,11 +279,13 @@ export async function registerRoutes(
 
   app.post("/api/auth/resend-verification", async (req, res) => {
     try {
-      if (!req.session.userId) {
-        return res.status(401).json({ error: "Non authentifié" });
+      let user;
+      if (req.session.userId) {
+        user = await storage.getUser(req.session.userId);
+      } else if (req.body.email) {
+        user = await storage.getUserByEmail(req.body.email);
       }
 
-      const user = await storage.getUser(req.session.userId);
       if (!user) {
         return res.status(404).json({ error: "Utilisateur non trouvé" });
       }

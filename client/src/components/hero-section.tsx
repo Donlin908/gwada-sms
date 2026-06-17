@@ -27,8 +27,6 @@ export function HeroSection() {
             <span className="font-medium">Service accessible depuis la Guadeloupe et les DOM.</span>
             <br />
             Réception uniquement — aucun envoi possible.
-            <br />
-            Sans inscription, sans engagement.
           </p>
 
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
