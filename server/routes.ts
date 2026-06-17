@@ -484,7 +484,10 @@ export async function registerRoutes(
         const reservation = await storage.getActiveReservation(phoneNumberId);
         const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
         const ownsByUser = !!reservation && !!req.session?.userId && reservation.userId === req.session.userId;
-        const ownsBySession = !!reservation && !!sessionId && reservation.sessionId === sessionId;
+        // L'identité invité (sessionId via query) ne doit JAMAIS débloquer une
+        // réservation admin (sessionId fixe "admin") : seul un admin authentifié
+        // (branche isAdmin ci-dessus) peut lire ces SMS.
+        const ownsBySession = !!reservation && !!sessionId && reservation.sessionId !== "admin" && reservation.sessionId === sessionId;
         if (!ownsByUser && !ownsBySession) {
           return res.status(403).json({ error: "Non autorisé" });
         }
