@@ -21,7 +21,7 @@ export default function PaymentCancel() {
                 <XCircle className="h-10 w-10 text-orange-600 dark:text-orange-400" />
               </div>
               <CardTitle className="text-2xl" data-testid="text-cancel-title">
-                Paiement annulé
+                Paiement non finalisé
               </CardTitle>
               <CardDescription>
                 Votre paiement n'a pas été effectué
@@ -29,7 +29,7 @@ export default function PaymentCancel() {
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-center text-muted-foreground">
-                Vous avez annulé le paiement. Aucun montant n'a été débité de votre compte.
+                Vous avez quitté la page de paiement. Aucun montant n'a été débité de votre compte.
                 Le numéro est toujours disponible si vous souhaitez réessayer.
               </p>
 
@@ -37,7 +37,7 @@ export default function PaymentCancel() {
                 {phoneId && (
                   <Link href={`/payment?phone_id=${phoneId}`}>
                     <Button className="w-full gap-2" size="lg" data-testid="button-retry">
-                      Réessayer
+                      Réessayer le paiement
                     </Button>
                   </Link>
                 )}

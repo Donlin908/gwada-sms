@@ -98,15 +98,19 @@ export async function getStripeSync() {
     stripeSync.processWebhook = async (payload: Buffer, signature: string) => {
       const stripe = new Stripe(secretKey);
       const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      
+
       if (endpointSecret) {
         try {
-          return stripe.webhooks.constructEvent(payload, signature, endpointSecret);
-        } catch (err) {
-          console.warn("[StripeSync] Webhook signature verification failed, falling back to parsing");
+          const event = stripe.webhooks.constructEvent(payload, signature, endpointSecret);
+          console.log("[Stripe Webhook] Signature OK — event:", event.type);
+          return event;
+        } catch (err: any) {
+          console.error("[Stripe Webhook] Signature INVALID — requête rejetée:", err.message);
+          throw err;
         }
       }
-      
+
+      console.warn("[Stripe Webhook] ⚠️ STRIPE_WEBHOOK_SECRET non configuré — vérification de signature DÉSACTIVÉE");
       try {
         return JSON.parse(payload.toString());
       } catch (e) {
