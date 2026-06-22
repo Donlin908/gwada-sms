@@ -271,7 +271,17 @@ export async function registerRoutes(
         verificationExpires: null,
       });
 
-      res.json({ message: "Email vérifié avec succès !" });
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error after verify:", err);
+          return res.json({ message: "Email vérifié avec succès !" });
+        }
+        req.session.userId = user.id;
+        req.session.save((err) => {
+          if (err) console.error("Session save error after verify:", err);
+          res.json({ message: "Email vérifié avec succès !" });
+        });
+      });
     } catch (error) {
       console.error("Error verifying email:", error);
       res.status(500).json({ error: "Erreur serveur" });
