@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, User, Mail, Lock, CheckCircle2 } from "lucide-react";
+import { Loader2, User, Mail, Lock, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function Auth() {
   const [, navigate] = useLocation();
@@ -15,6 +15,7 @@ export default function Auth() {
   const params = new URLSearchParams(searchString);
   const { user, login, register, loginError, registerError, isLoginPending, isRegisterPending } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(params.get("mode") === "register");
+  const hasAuthError = params.get("error") === "auth_failed";
   const [showVerificationSent, setShowVerificationSent] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
 
@@ -76,6 +77,15 @@ export default function Auth() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {hasAuthError && (
+                <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400" data-testid="error-auth-failed">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-medium">Connexion interrompue</p>
+                    <p className="text-xs opacity-80">La session a expiré ou a été annulée. Réessayez.</p>
+                  </div>
+                </div>
+              )}
               {showVerificationSent ? (
                 <div className="space-y-4 text-center" data-testid="verification-sent">
                   <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />

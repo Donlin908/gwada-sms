@@ -93,9 +93,12 @@ export function setupAuth(app: Express) {
       await ensureStrategy(domain);
       passport.authenticate(`replitauth:${domain}`, {
         session: false,
-        failureRedirect: "/auth",
+        failureRedirect: "/auth?error=auth_failed",
       })(req, res, (err: any) => {
-        if (err) return next(err);
+        if (err) {
+          console.error("[OAuth callback error]", err?.message || err);
+          return res.redirect("/auth?error=auth_failed");
+        }
         const passportUser = req.user as any;
         if (passportUser?.dbUserId) {
           req.session.userId = passportUser.dbUserId;
@@ -103,11 +106,12 @@ export function setupAuth(app: Express) {
             res.redirect("/dashboard");
           });
         } else {
-          res.redirect("/auth");
+          res.redirect("/auth?error=auth_failed");
         }
       });
     } catch (err) {
-      next(err);
+      console.error("[OAuth callback catch]", err);
+      res.redirect("/auth?error=auth_failed");
     }
   });
 
