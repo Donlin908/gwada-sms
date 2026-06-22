@@ -746,6 +746,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/admin/users/:id", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
+      await storage.deleteUser(req.params.id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la suppression de l'utilisateur" });
+    }
+  });
+
   app.delete("/api/admin/reviews/:id", async (req, res) => {
     try {
       await storage.deleteReview(req.params.id);

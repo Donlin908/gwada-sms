@@ -574,6 +574,19 @@ export default function AdminPage() {
       toast({ title: "Erreur lors de la synchronisation", variant: "destructive" });
     },
   });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Compte supprimé" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    },
+    onError: () => {
+      toast({ title: "Erreur lors de la suppression", variant: "destructive" });
+    },
+  });
   
   if (!isAuthenticated) {
     return <LoginForm onLogin={() => setIsAuthenticated(true)} />;
@@ -1288,6 +1301,7 @@ export default function AdminPage() {
                     <th className="px-4 py-3 text-left font-medium">Méthode</th>
                     <th className="px-4 py-3 text-left font-medium">Email vérifié</th>
                     <th className="px-4 py-3 text-left font-medium">Date d'inscription</th>
+                    <th className="px-4 py-3 text-left font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1316,6 +1330,22 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {new Date(user.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          data-testid={`button-delete-user-${user.id}`}
+                          onClick={() => {
+                            if (confirm(`Supprimer le compte de ${user.email} ?`)) {
+                              deleteUserMutation.mutate(user.id);
+                            }
+                          }}
+                          disabled={deleteUserMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
