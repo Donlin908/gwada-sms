@@ -5,6 +5,7 @@ import passport from "passport";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import { authStorage } from "./storage";
+import * as telegram from "../../telegram-service";
 
 const getOidcConfig = memoize(
   async () => {
@@ -17,13 +18,20 @@ const getOidcConfig = memoize(
 );
 
 async function upsertUser(claims: any) {
-  return await authStorage.upsertUser({
+  const email = claims["email"] as string | undefined;
+  const isNew = email ? !(await authStorage.getUserByEmail(email)) : false;
+  const user = await authStorage.upsertUser({
     id: claims["sub"],
-    email: claims["email"],
+    email,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+  if (isNew && email) {
+    const name = [claims["first_name"], claims["last_name"]].filter(Boolean).join(" ") || null;
+    telegram.notifyNewUser(email, name, "google").catch(() => {});
+  }
+  return user;
 }
 
 export function setupAuth(app: Express) {
