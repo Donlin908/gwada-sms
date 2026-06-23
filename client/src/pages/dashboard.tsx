@@ -48,8 +48,7 @@ export default function Dashboard() {
       return apiRequest("DELETE", "/api/user/account");
     },
     onSuccess: () => {
-      toast({ title: "Compte supprimé" });
-      navigate("/");
+      window.location.href = "/";
     },
     onError: () => {
       toast({ title: "Erreur lors de la suppression", variant: "destructive" });
