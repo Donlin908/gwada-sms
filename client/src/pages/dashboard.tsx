@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -7,8 +8,11 @@ import { LoadingSpinner } from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserReservation {
   id: string;
@@ -25,6 +29,8 @@ interface UserReservation {
 export default function Dashboard() {
   const { user, isLoading: authLoading, resendVerification, isResendPending } = useAuth();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: reservations, isLoading: reservationsLoading } = useQuery<UserReservation[]>({
     queryKey: ["/api/user/reservations"],
@@ -35,6 +41,20 @@ export default function Dashboard() {
       return res.json();
     },
     enabled: !!user,
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", "/api/user/account");
+    },
+    onSuccess: () => {
+      toast({ title: "Compte supprimé" });
+      navigate("/");
+    },
+    onError: () => {
+      toast({ title: "Erreur lors de la suppression", variant: "destructive" });
+      setShowDeleteDialog(false);
+    },
   });
 
   if (authLoading) {
@@ -101,13 +121,25 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold" data-testid="text-dashboard-title">
-              Bonjour, {user.username}
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Gérez vos numéros et suivez vos réservations
-            </p>
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold" data-testid="text-dashboard-title">
+                Bonjour, {user.username}
+              </h1>
+              <p className="mt-2 text-muted-foreground">
+                Gérez vos numéros et suivez vos réservations
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 gap-2 mt-1"
+              onClick={() => setShowDeleteDialog(true)}
+              data-testid="button-delete-account"
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer le compte
+            </Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3 mb-8">
@@ -235,6 +267,41 @@ export default function Dashboard() {
         </div>
       </main>
       <Footer />
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent data-testid="dialog-delete-account">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Supprimer le compte
+            </DialogTitle>
+            <DialogDescription>
+              Cette action est irréversible. Votre compte et toutes vos réservations seront définitivement supprimés.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              data-testid="button-cancel-delete"
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteAccountMutation.mutate()}
+              disabled={deleteAccountMutation.isPending}
+              data-testid="button-confirm-delete-account"
+            >
+              {deleteAccountMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Oui, supprimer mon compte"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

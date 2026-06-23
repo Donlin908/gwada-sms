@@ -363,6 +363,21 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/user/account", async (req, res) => {
+    try {
+      const userId = req.session.userId || (req.user as any)?.dbUserId;
+      if (!userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+      await storage.deleteUser(userId);
+      req.session.destroy(() => {});
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user account:", error);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   app.get("/api/numbers", async (req, res) => {
     try {
       const country = (req.query.country as Country) || "france";
