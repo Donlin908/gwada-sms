@@ -54,6 +54,17 @@ export async function notifyNewUser(email: string, name: string | null, method: 
   );
 }
 
+export async function notifyUserLogin(email: string, name: string | null, method: string): Promise<void> {
+  const who = name ? `<b>${name}</b> (${email})` : `<b>${email}</b>`;
+  const methodLabel = method === "google" ? "Google" : "Email/Mot de passe";
+  await sendAdminMessage(
+    `🔑 <b>Connexion</b>\n` +
+    `Utilisateur : ${who}\n` +
+    `Méthode : ${methodLabel}\n` +
+    `📅 ${new Date().toLocaleString("fr-FR")}`
+  );
+}
+
 export async function notifyNewPayment(options: {
   amount: number;
   currency: string;
