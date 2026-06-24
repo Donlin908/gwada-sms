@@ -27,13 +27,9 @@ async function upsertUser(claims: any) {
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
-  if (email) {
+  if (email && isNew) {
     const name = [claims["first_name"], claims["last_name"]].filter(Boolean).join(" ") || null;
-    if (isNew) {
-      telegram.notifyNewUser(email, name, "google").catch(() => {});
-    } else {
-      telegram.notifyUserLogin(email, name, "google").catch(() => {});
-    }
+    telegram.notifyNewUser(email, name, "google").catch(() => {});
   }
   return user;
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Phone, Clock, MessageSquare, Plus, AlertTriangle, Loader2, Trash2, Search } from "lucide-react";
 import { FranceFlag, UsaFlag, CanadaFlag } from "@/components/flag-icons";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +31,10 @@ export default function Dashboard() {
   const { user, isLoading: authLoading, resendVerification, isResendPending } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showClaimDialog, setShowClaimDialog] = useState(false);
+  const [claimPhone, setClaimPhone] = useState("");
 
   const { data: reservations, isLoading: reservationsLoading } = useQuery<UserReservation[]>({
     queryKey: ["/api/user/reservations"],
@@ -53,6 +57,24 @@ export default function Dashboard() {
     onError: () => {
       toast({ title: "Erreur lors de la suppression", variant: "destructive" });
       setShowDeleteDialog(false);
+    },
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      return apiRequest("POST", "/api/user/reservations/claim", { phoneNumber });
+    },
+    onSuccess: async (data: any) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });
+      setShowClaimDialog(false);
+      setClaimPhone("");
+      toast({
+        title: data.alreadyOwned ? "Réservation déjà liée" : "✅ Réservation récupérée !",
+        description: data.message,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Introuvable", description: err.message || "Numéro ou réservation non trouvé.", variant: "destructive" });
     },
   });
 
@@ -255,9 +277,20 @@ export default function Dashboard() {
                     <p className="text-muted-foreground mb-4">
                       Commencez par réserver un numéro virtuel
                     </p>
-                    <Link href="/numbers">
-                      <Button data-testid="button-get-first-number">Obtenir un numéro</Button>
-                    </Link>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Link href="/numbers">
+                        <Button data-testid="button-get-first-number">Obtenir un numéro</Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => setShowClaimDialog(true)}
+                        data-testid="button-claim-reservation"
+                      >
+                        <Search className="h-4 w-4" />
+                        J'ai déjà payé — récupérer ma réservation
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -266,6 +299,44 @@ export default function Dashboard() {
         </div>
       </main>
       <Footer />
+
+      <Dialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
+        <DialogContent data-testid="dialog-claim-reservation">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Récupérer ma réservation
+            </DialogTitle>
+            <DialogDescription>
+              Vous avez payé mais votre réservation n'apparaît pas ? Entrez le numéro de téléphone qui vous a été attribué lors du paiement.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              placeholder="+12892748170 ou +1 289 274 8170"
+              value={claimPhone}
+              onChange={(e) => setClaimPhone(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && claimPhone.length > 5 && claimMutation.mutate(claimPhone)}
+              data-testid="input-claim-phone"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Le numéro est visible sur votre reçu Stripe ou dans la notification de confirmation.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowClaimDialog(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => claimMutation.mutate(claimPhone)}
+              disabled={claimMutation.isPending || claimPhone.length < 5}
+              data-testid="button-confirm-claim"
+            >
+              {claimMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Récupérer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent data-testid="dialog-delete-account">

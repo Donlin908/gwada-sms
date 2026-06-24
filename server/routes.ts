@@ -363,6 +363,40 @@ export async function registerRoutes(
     }
   });
 
+  // Claim a reservation that wasn't linked to the account (e.g. paid with different email)
+  app.post("/api/user/reservations/claim", async (req, res) => {
+    try {
+      const userId = req.session.userId || (req.user as any)?.dbUserId;
+      if (!userId) return res.status(401).json({ error: "Non authentifié" });
+
+      const { phoneNumber } = z.object({ phoneNumber: z.string().min(5) }).parse(req.body);
+
+      // Find the phone number in DB
+      const [phone] = await db.select().from(phoneNumbers)
+        .where(sql`REPLACE(${phoneNumbers.number}, ' ', '') = REPLACE(${phoneNumber.trim()}, ' ', '')`)
+        .limit(1);
+
+      if (!phone) return res.status(404).json({ error: "Numéro introuvable dans notre système." });
+
+      // Find active reservation for this number
+      const reservation = await storage.getActiveReservation(phone.id);
+      if (!reservation) return res.status(404).json({ error: "Aucune réservation active trouvée pour ce numéro." });
+
+      // Already belongs to this user
+      if (reservation.userId === userId) {
+        return res.status(200).json({ success: true, message: "Cette réservation vous appartient déjà.", alreadyOwned: true });
+      }
+
+      // Link to current user
+      await db.update(reservations).set({ userId }).where(eq(reservations.id, reservation.id));
+      console.log(`[ClaimReservation] Reservation ${reservation.id} claimed by user ${userId}`);
+
+      res.json({ success: true, message: "Réservation récupérée avec succès !" });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || "Erreur lors de la récupération" });
+    }
+  });
+
   app.delete("/api/user/account", async (req, res) => {
     try {
       const userId = req.session.userId || (req.user as any)?.dbUserId;
@@ -1919,13 +1953,13 @@ export async function registerRoutes(
         await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
         console.log(`[ConfirmPayment] Created reservation for user ${userId || 'guest'} on ${phoneNumberId}`);
 
-      } else if (!reservation.userId && req.session.userId) {
-        // Webhook created as guest but user is logged in — link it to them
+      } else if (req.session.userId && reservation.userId !== req.session.userId) {
+        // Always link to currently logged-in user — they're the one who just paid and called this endpoint
         await db.update(reservations)
           .set({ userId: req.session.userId })
           .where(eq(reservations.id, reservation.id));
         reservation = { ...reservation, userId: req.session.userId };
-        console.log(`[ConfirmPayment] Linked reservation ${reservation.id} to user ${req.session.userId}`);
+        console.log(`[ConfirmPayment] Linked reservation ${reservation.id} to logged-in user ${req.session.userId} (was: ${reservation.userId || 'guest'})`);
       }
 
       // ── Notification Telegram si achat via bot ───────────────────────────
