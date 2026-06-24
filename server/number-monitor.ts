@@ -245,6 +245,32 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
         });
         synced++;
         console.log(`Synced new number: ${twilioNum.phoneNumber}`);
+      } else {
+        // Number already in DB — always sync validity and restore availability if blocked
+        const smsCapable = twilioNum.capabilities.sms;
+        const needsValidityUpdate = existing.isValid !== smsCapable || !existing.lastTwilioCheck;
+        const needsAvailabilityRestore = smsCapable && !existing.isAvailable;
+
+        if (needsValidityUpdate) {
+          await storage.updatePhoneNumber(existing.id, {
+            isValid: smsCapable,
+            lastTwilioCheck: new Date(),
+          });
+        } else {
+          await storage.updatePhoneNumber(existing.id, { lastTwilioCheck: new Date() });
+        }
+
+        if (needsAvailabilityRestore) {
+          const activeRes = await storage.getActiveReservation(existing.id);
+          if (!activeRes) {
+            await storage.updatePhoneNumberAvailability(existing.id, true);
+            synced++;
+            console.log(`Restored availability: ${twilioNum.phoneNumber}`);
+          }
+        } else if (needsValidityUpdate) {
+          synced++;
+          console.log(`Re-validated existing number: ${twilioNum.phoneNumber} (valid=${smsCapable})`);
+        }
       }
     }
     

@@ -1092,6 +1092,27 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/reset-availability", async (req, res) => {
+    try {
+      const allNumbers = await storage.getAllPhoneNumbers();
+      let reset = 0;
+      for (const num of allNumbers) {
+        if (!num.isAvailable && num.isValid) {
+          const activeRes = await storage.getActiveReservation(num.id);
+          if (!activeRes) {
+            await storage.updatePhoneNumberAvailability(num.id, true);
+            reset++;
+            console.log(`Reset availability: ${num.number}`);
+          }
+        }
+      }
+      res.json({ message: "Reset completed", reset });
+    } catch (error) {
+      console.error("Error resetting availability:", error);
+      res.status(500).json({ error: "Failed to reset availability" });
+    }
+  });
+
   app.get("/api/admin/users", async (req, res) => {
     try {
       const result = await db.execute(sql`
