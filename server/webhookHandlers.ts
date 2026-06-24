@@ -1,7 +1,7 @@
 import { getStripeSync } from './stripeClient';
 import { storage } from './storage';
 import { db } from './db';
-import { users, phoneNumbers, pricingPlans } from '@shared/schema';
+import { users, phoneNumbers, reservations, pricingPlans } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import * as telegram from './telegram-service';
 
@@ -44,12 +44,16 @@ export class WebhookHandlers {
           const now = new Date();
           const expiresAt = new Date(now.getTime() + plan.durationHours * 60 * 60 * 1000);
 
-          // Find user by email
-          const userEmail = session.customer_details?.email;
-          let userId = null;
-          if (userEmail) {
-            const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1);
-            if (user) userId = user.id;
+          // 1st: use userId stored in metadata at checkout (most reliable, session-independent)
+          let userId: string | null = metadata.userId || null;
+
+          // 2nd: fall back to email lookup if userId not in metadata (older sessions)
+          if (!userId) {
+            const userEmail = session.customer_details?.email;
+            if (userEmail) {
+              const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1);
+              if (user) userId = user.id;
+            }
           }
 
           console.log(`[Webhook] Creating reservation for user ${userId || 'guest'} on number ${phoneNumberId}`);
@@ -85,9 +89,13 @@ export class WebhookHandlers {
                 planName: plan.name,
                 phoneNumber: num.number,
                 country: num.country,
-                userEmail: userEmail || undefined
+                userEmail: session.customer_details?.email || undefined
               });
             }
+          } else if (userId && !existing.userId) {
+            // Reservation was created as guest but we now have the userId — link it
+            await db.update(reservations).set({ userId }).where(eq(reservations.id, existing.id));
+            console.log(`[Webhook] Linked guest reservation ${existing.id} to user ${userId}`);
           }
         }
       }

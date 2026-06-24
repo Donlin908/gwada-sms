@@ -1901,6 +1901,8 @@ export async function registerRoutes(
           phoneNumberId,
           planId,
           userSessionId: sessionId,
+          // Include userId so webhook can link reservation directly even if session is lost
+          userId: (req.session as any)?.userId || '',
         },
       });
 
