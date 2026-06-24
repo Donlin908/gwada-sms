@@ -24,6 +24,11 @@ export class WebhookHandlers {
 
       if (event && event.type === 'checkout.session.completed') {
         const session = event.data.object;
+        // Safety check: only process if payment is confirmed
+        if (session.payment_status !== 'paid') {
+          console.warn(`[Webhook] Session ${session.id} not yet paid (status: ${session.payment_status}) — skipping`);
+          return;
+        }
         const metadata = session.metadata || {};
         const phoneNumberId = metadata.phoneNumberId;
         const planId = metadata.planId;

@@ -88,17 +88,32 @@ export default function PaymentSuccess() {
         <Header />
         <main className="flex flex-1 items-center justify-center py-8">
           <Card className="max-w-md text-center">
-            <CardContent className="pt-6">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-                <AlertCircle className="h-8 w-8 text-destructive" />
+            <CardContent className="pt-6 space-y-4">
+              <div className="mx-auto mb-2 h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
               </div>
-              <p className="text-lg font-medium">Erreur de confirmation</p>
-              <p className="text-muted-foreground mt-2">
-                Une erreur s'est produite lors de la confirmation de votre paiement.
+              <p className="text-lg font-medium">Confirmation en attente</p>
+              <p className="text-muted-foreground text-sm">
+                Votre paiement a peut-être été accepté mais la confirmation n'a pas pu s'afficher.
+                Vérifiez votre espace client — si votre numéro y est visible, tout est bon.
               </p>
-              <Link href="/numbers">
-                <Button className="mt-6">Retour aux numéros</Button>
-              </Link>
+              <div className="flex flex-col gap-2 pt-2">
+                <Link href="/dashboard">
+                  <Button className="w-full" data-testid="button-check-dashboard">
+                    Vérifier Mon Espace
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" className="w-full" data-testid="button-claim-from-success">
+                    J'ai payé mais le numéro n'apparaît pas
+                  </Button>
+                </Link>
+                <Link href="/numbers">
+                  <Button variant="ghost" className="w-full text-muted-foreground" data-testid="button-back-numbers">
+                    Retour aux numéros
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </main>

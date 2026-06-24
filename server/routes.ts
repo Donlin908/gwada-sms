@@ -1479,8 +1479,9 @@ export async function registerRoutes(
             payment_method_types: ['card'],
             line_items: [{ price: plan.priceId, quantity: 1 }],
             mode: 'payment',
+            invoice_creation: { enabled: true },
             success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&phone_id=${session.phoneNumberId}&plan_id=${planId}&user_session=${userSessionId}`,
-            cancel_url: `${baseUrl}/payment/cancel?phone_id=${session.phoneNumberId}&reason=declined`,
+            cancel_url: `${baseUrl}/payment/cancel?phone_id=${session.phoneNumberId}&reason=cancelled`,
             metadata: {
               phoneNumberId: session.phoneNumberId,
               planId,
@@ -1874,7 +1875,7 @@ export async function registerRoutes(
         // envoyée par email) pour chaque paiement unique — requis pour la SASU.
         invoice_creation: { enabled: true },
         success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&phone_id=${phoneNumberId}&plan_id=${planId}&user_session=${sessionId}`,
-        cancel_url: `${baseUrl}/payment/cancel?phone_id=${phoneNumberId}&reason=declined`,
+        cancel_url: `${baseUrl}/payment/cancel?phone_id=${phoneNumberId}&reason=cancelled`,
         metadata: {
           phoneNumberId,
           planId,
