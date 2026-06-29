@@ -1595,6 +1595,32 @@ export async function registerRoutes(
           `✅ <b>Connexion réussie, ${firstName} !</b>\n\nVous recevrez automatiquement les SMS arrivant sur votre numéro ${flag} <code>${num}</code> directement ici.\n\n📅 Valable jusqu'au ${new Date(reservation.expiresAt).toLocaleDateString("fr-FR")}`
         );
 
+        // Rattrapage : transmettre les messages déjà en base depuis le début de la réservation
+        try {
+          const existingMsgs = await storage.getMessages(reservation.phoneNumberId);
+          const startsAt = new Date(reservation.startsAt);
+          const recent = existingMsgs.filter(m => new Date(m.receivedAt) >= startsAt);
+          if (recent.length > 0) {
+            const catchFlag = phoneNum?.country === "france" ? "🇫🇷" : phoneNum?.country === "canada" ? "🇨🇦" : "🇺🇸";
+            const catchNum = phoneNum?.number || "";
+            // Max 5 messages pour éviter le flood Telegram
+            for (const msg of recent.slice(-5)) {
+              const catchText =
+                `📩 <b>SMS déjà reçu</b>\n` +
+                `Sur : ${catchFlag} <code>${catchNum}</code>\n` +
+                `De : <code>${msg.sender}</code>\n` +
+                `Message : <code>${msg.content}</code>\n` +
+                `📅 ${new Date(msg.receivedAt).toLocaleString("fr-FR")}`;
+              await telegram.sendMessage(chatId, catchText);
+            }
+            if (recent.length > 5) {
+              await telegram.sendMessage(chatId, `ℹ️ ${recent.length - 5} message(s) plus anciens non affichés.`);
+            }
+          }
+        } catch (catchErr: any) {
+          console.error("[Telegram] Catch-up erreur:", catchErr.message);
+        }
+
       } else if (text === "/start") {
         await tgSend(chatId,
           `👋 Bonjour <b>${firstName}</b> !\n\nJe suis le bot de <b>GWADA SMS</b> — votre service de numéros virtuels.\n\n` +
@@ -1830,7 +1856,7 @@ export async function registerRoutes(
   numberMonitor.startMonitoring(5 * 60 * 1000);
   startMonthlyReminder();
   startBotScheduler();
-  startSmsPoller(30000);
+  startSmsPoller(20000);
 
   app.get("/api/stripe/publishable-key", async (req, res) => {
     try {

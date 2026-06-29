@@ -42,11 +42,14 @@ async function pollOnce(): Promise<void> {
 
         let userEmail: string | undefined;
         if (r.sessionId !== "admin") {
-          const [u] = await db.execute(sql`
+          // db.execute() peut retourner {rows:[...]} ou un tableau direct selon le driver —
+          // on gère les deux cas pour éviter "not iterable"
+          const rawResult = await db.execute(sql`
             SELECT u.email FROM reservations r
             JOIN users u ON r.user_id = u.id
             WHERE r.id = ${r.reservationId} LIMIT 1
           `);
+          const u = Array.isArray(rawResult) ? rawResult[0] : (rawResult as any)?.rows?.[0];
           userEmail = (u as any)?.email;
         }
 
