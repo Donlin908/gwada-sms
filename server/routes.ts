@@ -570,13 +570,14 @@ export async function registerRoutes(
               receivedAt: msg.dateSent,
             });
             // Alerte Telegram pour chaque nouveau SMS reçu
-            const [resData] = await db.execute(sql`
+            const rawResData = await db.execute(sql`
               SELECT u.email, r.telegram_chat_id
               FROM reservations r
               JOIN users u ON r.user_id = u.id
               WHERE r.phone_number_id = ${phoneNumber.id} AND r.expires_at > NOW()
               LIMIT 1
             `);
+            const resData = Array.isArray(rawResData) ? rawResData[0] : (rawResData as any)?.rows?.[0];
             const userEmail = (resData as any)?.email;
             const userChatId = (resData as any)?.telegram_chat_id;
 
@@ -1836,13 +1837,14 @@ export async function registerRoutes(
       const [num] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
       if (num) {
         // Récupérer l'email du client s'il y a une réservation active
-        const [reservation] = await db.execute(sql`
+        const rawReservation = await db.execute(sql`
           SELECT u.email 
           FROM reservations r
           JOIN users u ON r.user_id = u.id
           WHERE r.phone_number_id = ${phoneNumberId} AND r.expires_at > NOW()
           LIMIT 1
         `);
+        const reservation = Array.isArray(rawReservation) ? rawReservation[0] : (rawReservation as any)?.rows?.[0];
         const userEmail = (reservation as any)?.email;
         await telegram.notifySmsReceived(num.number, msg.from, msg.body, num.country, userEmail);
       }
