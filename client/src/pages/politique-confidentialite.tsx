@@ -43,8 +43,8 @@ export default function PolitiqueConfidentialite() {
             <p><strong className="text-foreground">Entité :</strong> GWADA SMS (SASU)</p>
             <p><strong className="text-foreground">Siège :</strong> 173 rue de Courcelles, 75017 Paris, France</p>
             <p><strong className="text-foreground">Email :</strong>{" "}
-              <a href="mailto:dl.pdf971@gmail.com" className="text-primary hover:underline">
-                dl.pdf971@gmail.com
+              <a href="mailto:contact@gwadasms.com" className="text-primary hover:underline">
+                contact@gwadasms.com
               </a>
             </p>
           </div>
@@ -245,8 +245,8 @@ export default function PolitiqueConfidentialite() {
           <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-sm space-y-2">
             <p>
               <strong>Pour exercer vos droits :</strong>{" "}
-              <a href="mailto:dl.pdf971@gmail.com" className="text-primary hover:underline">
-                dl.pdf971@gmail.com
+              <a href="mailto:contact@gwadasms.com" className="text-primary hover:underline">
+                contact@gwadasms.com
               </a>
               {" "}— réponse sous 30 jours maximum.
             </p>

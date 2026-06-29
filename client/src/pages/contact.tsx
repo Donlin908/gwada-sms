@@ -52,8 +52,8 @@ export default function Contact() {
                 </CardHeader>
                 <CardContent>
                   <Button asChild className="w-full" data-testid="button-contact-email">
-                    <a href="mailto:dl.pdf971@gmail.com?subject=Support GWADA SMS">
-                      dl.pdf971@gmail.com
+                    <a href="mailto:contact@gwadasms.com?subject=Support GWADA SMS">
+                      contact@gwadasms.com
                     </a>
                   </Button>
                 </CardContent>
@@ -106,7 +106,7 @@ export default function Contact() {
                 Pour un problème bloquant votre service actif, précisez votre numéro de réservation dans votre email.
               </p>
               <Button variant="outline" asChild data-testid="button-contact-urgent">
-                <a href="mailto:dl.pdf971@gmail.com?subject=Urgence - Support GWADA SMS">
+                <a href="mailto:contact@gwadasms.com?subject=Urgence - Support GWADA SMS">
                   Contacter le support urgent
                 </a>
               </Button>

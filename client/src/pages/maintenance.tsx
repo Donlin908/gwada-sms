@@ -32,10 +32,10 @@ export default function MaintenancePage() {
           <p className="text-sm text-muted-foreground">
             Merci de votre patience. Pour toute urgence, contactez-nous à{" "}
             <a
-              href="mailto:dl.pdf971@gmail.com"
+              href="mailto:contact@gwadasms.com"
               className="text-primary hover:underline font-medium"
             >
-              dl.pdf971@gmail.com
+              contact@gwadasms.com
             </a>
           </p>
         </div>

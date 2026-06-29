@@ -62,7 +62,7 @@ export default function CGU() {
             Les paiements sont traités de manière sécurisée par Stripe. Les prix sont indiqués en euros TTC.
             Compte tenu de la nature numérique et immédiate du service, <strong>aucun remboursement n'est possible</strong>
             une fois le numéro activé et mis à disposition. En cas de problème technique avéré empêchant l'accès
-            au service, contactez-nous à <a href="mailto:dl.pdf971@gmail.com" className="text-primary hover:underline">dl.pdf971@gmail.com</a>.
+            au service, contactez-nous à <a href="mailto:contact@gwadasms.com" className="text-primary hover:underline">contact@gwadasms.com</a>.
           </p>
         </section>
 

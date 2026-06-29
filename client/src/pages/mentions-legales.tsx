@@ -13,7 +13,7 @@ export default function MentionsLegales() {
           <h2 className="text-xl font-semibold mb-3">Éditeur du site</h2>
           <p className="text-muted-foreground leading-relaxed">
             Le site GWADA SMS est édité par la société GWADA SMS (SASU), dont le siège social est situé au 173 rue de Courcelles, 75017 Paris, France.<br />
-            Email de contact : <a href="mailto:dl.pdf971@gmail.com" className="text-primary hover:underline">dl.pdf971@gmail.com</a>
+            Email de contact : <a href="mailto:contact@gwadasms.com" className="text-primary hover:underline">contact@gwadasms.com</a>
           </p>
         </section>
 
