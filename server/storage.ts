@@ -17,6 +17,8 @@ import {
   type CompensationToken,
   type Review,
   type InsertReview,
+  type SupportTicket,
+  type InsertSupportTicket,
   users,
   phoneNumbers,
   smsMessages,
@@ -26,6 +28,7 @@ import {
   numberAlerts,
   compensationTokens,
   reviews,
+  supportTickets,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -83,6 +86,11 @@ export interface IStorage {
   getReviews(): Promise<Review[]>;
   createReview(data: InsertReview): Promise<Review>;
   deleteReview(id: string): Promise<void>;
+
+  createSupportTicket(data: InsertSupportTicket & { userId?: string }): Promise<SupportTicket>;
+  getSupportTickets(): Promise<SupportTicket[]>;
+  getSupportTicket(id: string): Promise<SupportTicket | undefined>;
+  updateSupportTicket(id: string, data: { status?: string; adminResponse?: string }): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -378,6 +386,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReview(id: string): Promise<void> {
     await db.delete(reviews).where(eq(reviews.id, id));
+  }
+
+  async createSupportTicket(data: InsertSupportTicket & { userId?: string }): Promise<SupportTicket> {
+    const [ticket] = await db.insert(supportTickets).values(data).returning();
+    return ticket;
+  }
+
+  async getSupportTickets(): Promise<SupportTicket[]> {
+    return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt));
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | undefined> {
+    const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+    return ticket;
+  }
+
+  async updateSupportTicket(id: string, data: { status?: string; adminResponse?: string }): Promise<void> {
+    await db.update(supportTickets).set({ ...data, updatedAt: new Date() }).where(eq(supportTickets.id, id));
   }
 }
 

@@ -128,6 +128,29 @@ export const compensationTokens = pgTable("compensation_tokens", {
 
 export type CompensationToken = typeof compensationTokens.$inferSelect;
 
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  reservationId: varchar("reservation_id").references(() => reservations.id),
+  phoneNumber: text("phone_number"),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("open"),
+  adminResponse: text("admin_response"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({ id: true, createdAt: true, updatedAt: true, status: true, adminResponse: true }).extend({
+  category: z.enum(["sms_not_received", "telegram", "payment", "wrong_number", "other"]),
+  message: z.string().min(10, "Décrivez le problème en au moins 10 caractères").max(2000),
+  phoneNumber: z.string().optional(),
+  reservationId: z.string().optional(),
+});
+
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
 export const reviews = pgTable("reviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),

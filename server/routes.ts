@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { type Country, pricingPlans, phoneNumbers, reservations, users, insertReviewSchema } from "@shared/schema";
+import { type Country, pricingPlans, phoneNumbers, reservations, users, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder } from "./monthly-reminder";
@@ -816,6 +816,56 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Erreur lors de la suppression de l'avis" });
+    }
+  });
+
+  // ── Support Tickets ─────────────────────────────────────────────────────────
+  app.post("/api/support/tickets", async (req, res) => {
+    try {
+      const parsed = insertSupportTicketSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors[0]?.message || "Données invalides" });
+      }
+      const userId = req.session?.userId || (req.user as any)?.id || undefined;
+      const ticket = await storage.createSupportTicket({ ...parsed.data, userId });
+      // Notifier l'admin Telegram
+      const categoryLabels: Record<string, string> = {
+        sms_not_received: "SMS non reçu",
+        telegram: "Connexion Telegram",
+        payment: "Problème de paiement",
+        wrong_number: "Numéro incorrect",
+        other: "Autre",
+      };
+      const catLabel = categoryLabels[ticket.category] ?? ticket.category;
+      const numInfo = ticket.phoneNumber ? `\nNuméro : <code>${ticket.phoneNumber}</code>` : "";
+      telegram.sendMessage(
+        process.env.TELEGRAM_CHAT_ID ?? "",
+        `🎫 <b>Nouveau ticket support</b>\nCatégorie : <b>${catLabel}</b>${numInfo}\n\n<code>${ticket.message.slice(0, 500)}</code>\n\n📅 ${new Date().toLocaleString("fr-FR")}`
+      ).catch(() => {});
+      res.status(201).json({ id: ticket.id });
+    } catch (err: any) {
+      res.status(500).json({ error: "Erreur lors de la création du ticket" });
+    }
+  });
+
+  app.get("/api/admin/support/tickets", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      const tickets = await storage.getSupportTickets();
+      res.json(tickets);
+    } catch {
+      res.status(500).json({ error: "Erreur" });
+    }
+  });
+
+  app.patch("/api/admin/support/tickets/:id", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      const { status, adminResponse } = req.body;
+      await storage.updateSupportTicket(req.params.id, { status, adminResponse });
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Erreur" });
     }
   });
 

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Review } from "@shared/schema";
+import type { Review, SupportTicket } from "@shared/schema";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,8 @@ import {
   ChevronDown,
   ChevronUp,
   Inbox,
-  Trash2
+  Trash2,
+  TicketCheck
 } from "lucide-react";
 
 interface AdminStats {
@@ -1366,6 +1368,9 @@ export default function AdminPage() {
       {/* Mon accès admin */}
       <AdminMyAccessCard numbers={numbers ?? []} />
 
+      {/* Tickets support */}
+      <AdminSupportTicketsCard />
+
       {/* Avis clients */}
       <AdminReviewsCard />
     </div>
@@ -1689,6 +1694,172 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
             {reserveMutation.isPending ? "Réservation en cours..." : "Réserver gratuitement"}
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const TICKET_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  open: { label: "Ouvert", color: "bg-red-500/10 text-red-600" },
+  in_progress: { label: "En cours", color: "bg-yellow-500/10 text-yellow-600" },
+  resolved: { label: "Résolu", color: "bg-green-500/10 text-green-600" },
+  closed: { label: "Fermé", color: "bg-gray-500/10 text-gray-500" },
+};
+
+const TICKET_CATEGORY_LABELS: Record<string, string> = {
+  sms_not_received: "SMS non reçu",
+  telegram: "Problème Telegram",
+  payment: "Problème de paiement",
+  wrong_number: "Numéro incorrect",
+  other: "Autre",
+};
+
+function AdminSupportTicketsCard() {
+  const { toast } = useToast();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+
+  const { data: tickets = [], isLoading, refetch } = useQuery<SupportTicket[]>({
+    queryKey: ["/api/admin/support/tickets"],
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, status, adminResponse }: { id: string; status?: string; adminResponse?: string }) =>
+      apiRequest("PATCH", `/api/admin/support/tickets/${id}`, { status, adminResponse }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/tickets"] });
+      toast({ title: "Ticket mis à jour" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour le ticket.", variant: "destructive" });
+    },
+  });
+
+  const openTickets = tickets.filter((t) => t.status === "open" || t.status === "in_progress");
+  const closedTickets = tickets.filter((t) => t.status === "resolved" || t.status === "closed");
+
+  return (
+    <Card data-testid="card-support-tickets">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <TicketCheck className="h-5 w-5" />
+            Tickets support
+            {openTickets.length > 0 && (
+              <Badge className="bg-red-500 text-white ml-1">{openTickets.length}</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>{tickets.length} ticket(s) au total</CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh-tickets">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : tickets.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">Aucun ticket pour le moment.</p>
+        ) : (
+          <div className="space-y-3">
+            {[...openTickets, ...closedTickets].map((ticket) => {
+              const st = TICKET_STATUS_LABELS[ticket.status] ?? { label: ticket.status, color: "" };
+              const isExpanded = expandedId === ticket.id;
+              return (
+                <div key={ticket.id} className="rounded-lg border overflow-hidden">
+                  <button
+                    className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-muted/40 transition-colors"
+                    onClick={() => setExpandedId(isExpanded ? null : ticket.id)}
+                    data-testid={`ticket-toggle-${ticket.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className={`text-xs ${st.color}`}>{st.label}</Badge>
+                        <span className="text-xs font-medium">
+                          {TICKET_CATEGORY_LABELS[ticket.category] ?? ticket.category}
+                        </span>
+                        {ticket.phoneNumber && (
+                          <span className="text-xs font-mono text-muted-foreground">{ticket.phoneNumber}</span>
+                        )}
+                      </div>
+                      <p className="text-sm mt-1 truncate text-muted-foreground">{ticket.message}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(ticket.createdAt).toLocaleString("fr-FR")}
+                      </p>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4 shrink-0 mt-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 mt-1" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t bg-muted/20 p-4 space-y-3">
+                      <p className="text-sm whitespace-pre-wrap">{ticket.message}</p>
+
+                      {ticket.adminResponse && (
+                        <div className="rounded-md bg-primary/10 border border-primary/20 p-3 text-sm">
+                          <p className="text-xs font-medium text-primary mb-1">Réponse admin précédente</p>
+                          <p className="whitespace-pre-wrap">{ticket.adminResponse}</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label className="text-xs">Réponse / note interne</Label>
+                        <Textarea
+                          rows={3}
+                          value={replyText[ticket.id] ?? ticket.adminResponse ?? ""}
+                          onChange={(e) =>
+                            setReplyText((r) => ({ ...r, [ticket.id]: e.target.value }))
+                          }
+                          placeholder="Réponse pour le client ou note interne..."
+                          data-testid={`textarea-ticket-reply-${ticket.id}`}
+                        />
+                      </div>
+
+                      <div className="flex gap-2 flex-wrap items-center">
+                        {["open", "in_progress", "resolved", "closed"].map((s) => (
+                          <Button
+                            key={s}
+                            size="sm"
+                            variant={ticket.status === s ? "default" : "outline"}
+                            onClick={() =>
+                              updateMutation.mutate({
+                                id: ticket.id,
+                                status: s,
+                                adminResponse: replyText[ticket.id] ?? ticket.adminResponse ?? undefined,
+                              })
+                            }
+                            disabled={updateMutation.isPending}
+                            data-testid={`button-ticket-status-${s}-${ticket.id}`}
+                          >
+                            {TICKET_STATUS_LABELS[s]?.label ?? s}
+                          </Button>
+                        ))}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-auto"
+                          onClick={() =>
+                            updateMutation.mutate({ id: ticket.id, adminResponse: replyText[ticket.id] })
+                          }
+                          disabled={updateMutation.isPending || !replyText[ticket.id]}
+                          data-testid={`button-ticket-save-reply-${ticket.id}`}
+                        >
+                          Sauvegarder réponse
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
