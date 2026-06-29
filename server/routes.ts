@@ -1377,7 +1377,26 @@ export async function registerRoutes(
         const loggedInUserId = req.session?.userId || (req.user as any)?.id;
         const ownsByUser = !!loggedInUserId && reservation.userId === loggedInUserId;
         const ownsBySession = !!sessionId && reservation.sessionId !== "admin" && reservation.sessionId === sessionId;
-        if (!ownsByUser && !ownsBySession) {
+
+        // Fallback : réservation guest mais utilisateur connecté ayant une réservation active
+        // sur le même numéro (cas typique : paiement avant le fix userId du 29/06)
+        let ownsByPhoneNumber = false;
+        if (!ownsByUser && !ownsBySession && loggedInUserId) {
+          const [matchingRes] = await db
+            .select({ id: reservations.id })
+            .from(reservations)
+            .where(
+              and(
+                eq(reservations.phoneNumberId, reservation.phoneNumberId),
+                eq(reservations.userId, loggedInUserId),
+                eq(reservations.isActive, true)
+              )
+            )
+            .limit(1);
+          ownsByPhoneNumber = !!matchingRes;
+        }
+
+        if (!ownsByUser && !ownsBySession && !ownsByPhoneNumber) {
           return res.status(403).send("Non autorisé");
         }
       }

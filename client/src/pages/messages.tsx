@@ -267,14 +267,20 @@ export default function Messages() {
                   </p>
                   {telegramLinkData?.deepLink ? (
                     <Button
-                      asChild
                       className="w-full gap-2"
                       data-testid="button-open-telegram"
+                      onClick={() => {
+                        const token = telegramLinkData.token;
+                        // tg:// opens the Telegram app directly on mobile
+                        // https://t.me/ is the fallback for desktop/web
+                        window.location.href = `tg://resolve?domain=GwadasmsBot&start=${token}`;
+                        setTimeout(() => {
+                          window.open(telegramLinkData.deepLink, "_blank");
+                        }, 600);
+                      }}
                     >
-                      <a href={telegramLinkData.deepLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4" />
-                        Ouvrir @GwadasmsBot
-                      </a>
+                      <ExternalLink className="h-4 w-4" />
+                      Ouvrir @GwadasmsBot
                     </Button>
                   ) : (
                     <div className="flex items-center justify-center py-2">

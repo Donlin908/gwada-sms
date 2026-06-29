@@ -352,7 +352,10 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
 
 export async function runMonitoringCycle(): Promise<MonitoringStats> {
   console.log("Running monitoring cycle...");
-  
+
+  // Expire old reservations first — frees up numbers before any other check
+  await storage.expireOldReservations();
+
   const syncResult = await syncTwilioNumbers();
   const alertsSent = await checkAndAlertHighUsage();
   const purchased = await checkAndAutoPurchase();
