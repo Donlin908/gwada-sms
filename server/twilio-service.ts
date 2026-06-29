@@ -113,17 +113,24 @@ export async function validatePhoneNumber(phoneNumberSid: string): Promise<boole
   }
 }
 
-export async function getMessagesForNumber(phoneNumber: string): Promise<TwilioMessage[]> {
+export async function getMessagesForNumber(phoneNumber: string, since?: Date): Promise<TwilioMessage[]> {
   if (!client) {
     console.log("Twilio client not available, returning empty messages");
     return [];
   }
 
   try {
-    const messages = await client.messages.list({
+    const params: Record<string, any> = {
       to: phoneNumber,
-      limit: 50,
-    });
+      limit: 100,
+    };
+    // Filter to messages received since the reservation started — avoids fetching
+    // the entire message history for popular numbers and avoids the 50-item cap
+    if (since) {
+      params.dateSentAfter = since;
+    }
+
+    const messages = await client.messages.list(params);
 
     return messages.map(msg => ({
       sid: msg.sid,

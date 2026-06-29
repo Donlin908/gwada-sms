@@ -18,6 +18,7 @@ async function pollOnce(): Promise<void> {
       phoneNumberId: phoneNumbers.id,
       number: phoneNumbers.number,
       country: phoneNumbers.country,
+      startsAt: reservations.startsAt,
     })
     .from(reservations)
     .innerJoin(phoneNumbers, eq(reservations.phoneNumberId, phoneNumbers.id))
@@ -25,7 +26,8 @@ async function pollOnce(): Promise<void> {
 
   for (const r of activeReservations) {
     try {
-      const twilioMessages = await twilioService.getMessagesForNumber(r.number);
+      // Pass reservation start date so Twilio only returns messages from that period
+      const twilioMessages = await twilioService.getMessagesForNumber(r.number, r.startsAt ?? undefined);
       for (const msg of twilioMessages) {
         const existing = await storage.getMessageByTwilioSid(msg.sid);
         if (existing) continue;

@@ -555,7 +555,9 @@ export async function registerRoutes(
       }
       
       if (twilioService.isConfigured()) {
-        const twilioMessages = await twilioService.getMessagesForNumber(phoneNumber.number);
+        // Pass reservation start date so Twilio only returns messages from that period
+        const activeRes = await storage.getActiveReservation(phoneNumberId);
+        const twilioMessages = await twilioService.getMessagesForNumber(phoneNumber.number, activeRes?.startsAt ?? undefined);
         
         for (const msg of twilioMessages) {
           const existing = await storage.getMessageByTwilioSid(msg.sid);
