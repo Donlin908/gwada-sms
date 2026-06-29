@@ -827,7 +827,28 @@ export async function registerRoutes(
         return res.status(400).json({ error: parsed.error.errors[0]?.message || "Données invalides" });
       }
       const userId = req.session?.userId || (req.user as any)?.id || undefined;
-      const ticket = await storage.createSupportTicket({ ...parsed.data, userId });
+      // Enrichir avec les infos utilisateur si connecté
+      let resolvedEmail = parsed.data.userEmail || undefined;
+      let resolvedName = parsed.data.userName || undefined;
+      if (userId) {
+        try {
+          const dbUser = await storage.getUser(userId);
+          if (dbUser) {
+            if (!resolvedEmail && dbUser.email) resolvedEmail = dbUser.email;
+            if (!resolvedName) {
+              resolvedName = dbUser.firstName
+                ? `${dbUser.firstName}${dbUser.lastName ? " " + dbUser.lastName : ""}`
+                : dbUser.username || undefined;
+            }
+          }
+        } catch {}
+      }
+      const ticket = await storage.createSupportTicket({
+        ...parsed.data,
+        userId,
+        userEmail: resolvedEmail,
+        userName: resolvedName,
+      });
       // Notifier l'admin Telegram
       const categoryLabels: Record<string, string> = {
         sms_not_received: "SMS non reçu",
@@ -838,9 +859,13 @@ export async function registerRoutes(
       };
       const catLabel = categoryLabels[ticket.category] ?? ticket.category;
       const numInfo = ticket.phoneNumber ? `\nNuméro : <code>${ticket.phoneNumber}</code>` : "";
+      const userInfo = [
+        resolvedName ? `👤 ${resolvedName}` : null,
+        resolvedEmail ? `📧 ${resolvedEmail}` : null,
+      ].filter(Boolean).join("  |  ");
       telegram.sendMessage(
         process.env.TELEGRAM_CHAT_ID ?? "",
-        `🎫 <b>Nouveau ticket support</b>\nCatégorie : <b>${catLabel}</b>${numInfo}\n\n<code>${ticket.message.slice(0, 500)}</code>\n\n📅 ${new Date().toLocaleString("fr-FR")}`
+        `🎫 <b>Nouveau ticket support</b>\nCatégorie : <b>${catLabel}</b>${numInfo}${userInfo ? "\n" + userInfo : ""}\n\n<code>${ticket.message.slice(0, 500)}</code>\n\n📅 ${new Date().toLocaleString("fr-FR")}`
       ).catch(() => {});
       res.status(201).json({ id: ticket.id });
     } catch (err: any) {

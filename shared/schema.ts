@@ -133,6 +133,8 @@ export const supportTickets = pgTable("support_tickets", {
   userId: varchar("user_id").references(() => users.id),
   reservationId: varchar("reservation_id").references(() => reservations.id),
   phoneNumber: text("phone_number"),
+  userEmail: text("user_email"),
+  userName: text("user_name"),
   category: text("category").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull().default("open"),
@@ -146,6 +148,8 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
   message: z.string().min(10, "Décrivez le problème en au moins 10 caractères").max(2000),
   phoneNumber: z.string().optional(),
   reservationId: z.string().optional(),
+  userEmail: z.string().email("Email invalide").optional().or(z.literal("")),
+  userName: z.string().max(100).optional(),
 });
 
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;

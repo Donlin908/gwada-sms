@@ -53,6 +53,8 @@ export default function Messages() {
   const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   const [supportCategory, setSupportCategory] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
+  const [supportName, setSupportName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
   const [supportSent, setSupportSent] = useState(false);
 
   const { data: phoneNumber, isLoading: isLoadingNumber } = useQuery<PhoneNumberResponse>({
@@ -119,6 +121,9 @@ export default function Messages() {
     }
   };
 
+  const { data: currentUser } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const isLoggedIn = !!currentUser?.id;
+
   const supportMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/support/tickets", {
@@ -126,6 +131,8 @@ export default function Messages() {
         message: supportMessage,
         phoneNumber: phoneNumber?.number,
         reservationId: reservation?.id,
+        userEmail: isLoggedIn ? undefined : (supportEmail || undefined),
+        userName: isLoggedIn ? undefined : (supportName || undefined),
       });
     },
     onSuccess: () => {
@@ -143,6 +150,8 @@ export default function Messages() {
       setSupportSent(false);
       setSupportCategory("");
       setSupportMessage("");
+      setSupportName("");
+      setSupportEmail("");
     }, 300);
   };
 
@@ -399,6 +408,35 @@ export default function Messages() {
             </div>
           ) : (
             <div className="space-y-4 py-2">
+              {!isLoggedIn && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="support-name">Votre prénom / nom</Label>
+                    <input
+                      id="support-name"
+                      type="text"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      placeholder="Jean Dupont"
+                      value={supportName}
+                      onChange={(e) => setSupportName(e.target.value.slice(0, 100))}
+                      data-testid="input-support-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="support-email">Votre email</Label>
+                    <input
+                      id="support-email"
+                      type="email"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      placeholder="vous@exemple.com"
+                      value={supportEmail}
+                      onChange={(e) => setSupportEmail(e.target.value)}
+                      data-testid="input-support-email"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="support-category">Catégorie du problème</Label>
                 <Select value={supportCategory} onValueChange={setSupportCategory}>
