@@ -887,9 +887,43 @@ export async function registerRoutes(
     if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const { status, adminResponse } = req.body;
+
+      // Fetch the ticket before update to check if adminResponse is new
+      const ticketBefore = await storage.getSupportTicket(req.params.id);
+
       await storage.updateSupportTicket(req.params.id, { status, adminResponse });
+
+      // Send email to user if a (new) adminResponse is being saved
+      const isNewResponse =
+        adminResponse &&
+        adminResponse.trim().length > 0 &&
+        adminResponse !== ticketBefore?.adminResponse;
+
+      if (isNewResponse && ticketBefore) {
+        // Resolve email: prefer ticket.userEmail, fallback to linked user account
+        let toEmail = ticketBefore.userEmail ?? null;
+        if (!toEmail && ticketBefore.userId) {
+          const user = await storage.getUser(ticketBefore.userId);
+          toEmail = user?.email ?? null;
+        }
+
+        if (toEmail) {
+          const { sendTicketResponseEmail } = await import("./email-service.js");
+          sendTicketResponseEmail(toEmail, {
+            ticketId: ticketBefore.id,
+            category: ticketBefore.category,
+            originalMessage: ticketBefore.message,
+            adminResponse: adminResponse.trim(),
+            userName: ticketBefore.userName ?? null,
+          }).catch((err) => console.error("sendTicketResponseEmail error:", err));
+        } else {
+          console.log(`Ticket #${ticketBefore.id}: no email address found, skipping notification.`);
+        }
+      }
+
       res.json({ success: true });
-    } catch {
+    } catch (err) {
+      console.error("PATCH support ticket error:", err);
       res.status(500).json({ error: "Erreur" });
     }
   });

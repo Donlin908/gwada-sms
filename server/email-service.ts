@@ -138,6 +138,81 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
   }
 }
 
+export interface TicketResponseData {
+  ticketId: number;
+  category: string;
+  originalMessage: string;
+  adminResponse: string;
+  userName?: string | null;
+}
+
+export async function sendTicketResponseEmail(toEmail: string, data: TicketResponseData): Promise<boolean> {
+  if (!transporter) {
+    console.log("Email not configured. Ticket response not sent for ticket", data.ticketId);
+    return false;
+  }
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    sms_not_received: "SMS non reçu",
+    telegram: "Problème Telegram",
+    payment: "Problème de paiement",
+    wrong_number: "Numéro incorrect",
+    other: "Autre",
+  };
+
+  const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category;
+  const greeting = data.userName ? `Bonjour ${data.userName},` : "Bonjour,";
+  const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
+
+  try {
+    await transporter.sendMail({
+      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      to: toEmail,
+      subject: `[GWADA SMS] Réponse à votre ticket #${data.ticketId}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="color: #16a34a; margin: 0; font-size: 24px;">GWADA SMS</h1>
+            <p style="color: #6b7280; margin-top: 4px; font-size: 14px;">Service de numéros virtuels</p>
+          </div>
+
+          <p style="font-size: 16px; margin-bottom: 8px;">${greeting}</p>
+          <p style="font-size: 15px; color: #374151; margin-bottom: 24px;">
+            Notre équipe support a répondu à votre ticket <strong>#${data.ticketId}</strong>
+            (catégorie : <em>${categoryLabel}</em>).
+          </p>
+
+          <div style="background: #f9fafb; border-left: 4px solid #6b7280; padding: 14px 18px; border-radius: 4px; margin-bottom: 20px;">
+            <p style="margin: 0 0 6px 0; font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Votre message</p>
+            <p style="margin: 0; color: #374151; font-size: 14px; white-space: pre-wrap;">${data.originalMessage}</p>
+          </div>
+
+          <div style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px 18px; border-radius: 4px; margin-bottom: 28px;">
+            <p style="margin: 0 0 6px 0; font-size: 12px; color: #16a34a; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold;">Réponse du support</p>
+            <p style="margin: 0; color: #1f2937; font-size: 15px; white-space: pre-wrap;">${data.adminResponse}</p>
+          </div>
+
+          <p style="font-size: 14px; color: #6b7280;">
+            Si vous avez d'autres questions, n'hésitez pas à nous contacter depuis
+            <a href="${baseUrl}/contact" style="color: #16a34a;">notre page support</a>.
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            GWADA SMS — Service de numéros virtuels pour les DOM-TOM
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`Ticket response email sent to ${toEmail} for ticket #${data.ticketId}`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send ticket response email:", error);
+    return false;
+  }
+}
+
 export interface NewNumberPurchasedData {
   phoneNumber: string;
   country: string;
