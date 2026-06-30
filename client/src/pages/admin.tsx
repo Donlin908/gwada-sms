@@ -36,7 +36,8 @@ import {
   ChevronUp,
   Inbox,
   Trash2,
-  TicketCheck
+  TicketCheck,
+  FileText
 } from "lucide-react";
 
 interface AdminStats {
@@ -448,6 +449,12 @@ export default function AdminPage() {
     mutationFn: () => apiRequest("POST", "/api/admin/telegram/daily-report"),
     onSuccess: () => toast({ title: "📊 Rapport journalier envoyé", description: "Vérifiez votre Telegram." }),
     onError: () => toast({ title: "❌ Échec du rapport", description: "Vérifiez la configuration Telegram.", variant: "destructive" }),
+  });
+
+  const urssafReminderMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/urssaf-reminder"),
+    onSuccess: () => toast({ title: "🏛️ Rappel URSSAF envoyé", description: "Vérifiez votre Telegram — revenus du mois précédent inclus." }),
+    onError: () => toast({ title: "❌ Échec rappel URSSAF", description: "Vérifiez la configuration Telegram.", variant: "destructive" }),
   });
 
   const testSmsMutation = useMutation({
@@ -915,6 +922,17 @@ export default function AdminPage() {
                 >
                   <BarChart2 className="mr-2 h-3.5 w-3.5" />
                   {dailyReportMutation.isPending ? "Génération..." : "Envoyer rapport journalier"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => urssafReminderMutation.mutate()}
+                  disabled={urssafReminderMutation.isPending || !telegramStatus.configured}
+                  className="w-full border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                  data-testid="button-urssaf-reminder"
+                >
+                  <FileText className="mr-2 h-3.5 w-3.5" />
+                  {urssafReminderMutation.isPending ? "Envoi..." : "Rappel déclaration URSSAF"}
                 </Button>
               </div>
             )}

@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { type Country, pricingPlans, phoneNumbers, reservations, users, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
-import { startMonthlyReminder } from "./monthly-reminder";
+import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
 import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
 import { startSmsPoller } from "./sms-poller";
 import { isEmailConfigured, sendVerificationEmail } from "./email-service";
@@ -1290,6 +1290,16 @@ export async function registerRoutes(
         revenueToday: 0,
       });
       res.json({ success: true, message: "Rapport journalier envoyé sur Telegram ✅" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/admin/urssaf-reminder", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      await sendMonthlyReminder();
+      res.json({ success: true, message: "Rappel URSSAF envoyé sur Telegram ✅" });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
     }
