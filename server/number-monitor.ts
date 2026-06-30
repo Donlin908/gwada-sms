@@ -350,6 +350,78 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
   };
 }
 
+const DEFAULT_MAX_RESERVATIONS_WITHOUT_SMS = 3;
+
+export async function checkQualityAndRetireNumbers(): Promise<number> {
+  const threshold = parseInt(
+    await storage.getSetting("max_reservations_without_sms") || String(DEFAULT_MAX_RESERVATIONS_WITHOUT_SMS)
+  );
+
+  const expiredReservations = await storage.getExpiredUncheckedReservations();
+  let retired = 0;
+
+  for (const reservation of expiredReservations) {
+    const smsCount = await storage.getSmsCountForPeriod(
+      reservation.phoneNumberId,
+      reservation.startsAt,
+      reservation.expiresAt
+    );
+
+    await storage.markReservationQualityChecked(reservation.id);
+
+    if (smsCount === 0) {
+      await storage.incrementReservationsWithoutSms(reservation.phoneNumberId);
+
+      const num = await storage.getPhoneNumber(reservation.phoneNumberId);
+      if (!num) continue;
+
+      const updatedCount = (num.reservationsWithoutSms || 0) + 1;
+      console.log(`[Quality] ${num.number} : ${updatedCount} réservation(s) sans SMS (seuil: ${threshold})`);
+
+      if (updatedCount >= threshold && num.isValid) {
+        console.log(`[Quality] Retrait automatique de ${num.number} (${updatedCount} réservations sans SMS)`);
+        await storage.retireNumberForQuality(num.id);
+        retired++;
+
+        let replacementPurchased = false;
+        const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled");
+        if (autoPurchaseEnabled === "true" && isTwilioConfigured()) {
+          const countryCode = num.country === "france" ? "FR" : num.country === "canada" ? "CA" : "US";
+          try {
+            const available = await searchAvailableNumbers(countryCode, 1);
+            const candidate = available.find(n => n.smsCapable);
+            if (candidate) {
+              const purchased = await purchasePhoneNumber(candidate.phoneNumber, undefined, candidate.smsCapable);
+              if (purchased) {
+                await storage.createPhoneNumber({
+                  twilioSid: purchased.sid,
+                  number: purchased.phoneNumber,
+                  country: num.country,
+                  isAvailable: true,
+                  isValid: true,
+                });
+                await telegram.notifyNumberPurchased(
+                  purchased.phoneNumber,
+                  num.country,
+                  `Remplacement de ${num.number} (qualité insuffisante)`
+                );
+                replacementPurchased = true;
+                console.log(`[Quality] Remplacement acheté : ${purchased.phoneNumber}`);
+              }
+            }
+          } catch (err: any) {
+            console.error(`[Quality] Échec achat remplacement : ${err?.message}`);
+          }
+        }
+
+        await telegram.notifyNumberRetiredForQuality(num.number, num.country, updatedCount, replacementPurchased);
+      }
+    }
+  }
+
+  return retired;
+}
+
 export async function runMonitoringCycle(): Promise<MonitoringStats> {
   console.log("Running monitoring cycle...");
 
@@ -359,6 +431,7 @@ export async function runMonitoringCycle(): Promise<MonitoringStats> {
   const syncResult = await syncTwilioNumbers();
   const alertsSent = await checkAndAlertHighUsage();
   const purchased = await checkAndAutoPurchase();
+  await checkQualityAndRetireNumbers();
   
   const stats = await getMonitoringStats();
   stats.alertsSent = alertsSent;

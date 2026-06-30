@@ -50,6 +50,7 @@ const adminSettingsSchema = z.object({
   maxUsagesWeekly: z.number().int().min(1).max(1000).optional(),
   maxUsagesMonthly: z.number().int().min(1).max(1000).optional(),
   maintenanceMode: z.boolean().optional(),
+  maxReservationsWithoutSms: z.number().int().min(1).max(100).optional(),
 });
 
 const purchaseNumberSchema = z.object({
@@ -1009,6 +1010,7 @@ export async function registerRoutes(
       const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "3";
       const franceBundleRequired = await storage.getSetting("france_bundle_required") || "false";
       const maintenanceMode = await storage.getSetting("maintenance_mode") || "false";
+      const maxReservationsWithoutSms = await storage.getSetting("max_reservations_without_sms") || "3";
       
       res.json({
         ...stats,
@@ -1022,6 +1024,7 @@ export async function registerRoutes(
           maxUsagesMonthly: parseInt(maxUsagesMonthly),
           franceBundleRequired: franceBundleRequired === "true",
           maintenanceMode: maintenanceMode === "true",
+          maxReservationsWithoutSms: parseInt(maxReservationsWithoutSms),
         },
         services: {
           emailConfigured,
@@ -1045,7 +1048,7 @@ export async function registerRoutes(
         });
       }
       
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, maxNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode } = parseResult.data;
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, maxNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode, maxReservationsWithoutSms } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -1073,6 +1076,9 @@ export async function registerRoutes(
       }
       if (maintenanceMode !== undefined) {
         await storage.setSetting("maintenance_mode", String(maintenanceMode));
+      }
+      if (maxReservationsWithoutSms !== undefined) {
+        await storage.setSetting("max_reservations_without_sms", String(maxReservationsWithoutSms));
       }
       
       res.json({ message: "Settings updated successfully" });
@@ -1108,25 +1114,35 @@ export async function registerRoutes(
       const maxUsageDaily = parseInt(maxDailyStr || "10");
       const maxUsageWeekly = parseInt(maxWeeklyStr || "6");
       const maxUsageMonthly = parseInt(maxMonthlyStr || "3");
-      res.json(numbers.map(n => ({
-        id: n.id,
-        number: n.number,
-        country: n.country,
-        usageCount: n.usageCount,
-        isAvailable: n.isAvailable,
-        isValid: n.isValid,
-        twilioActive: n.isValid,
-        lastTwilioCheck: n.lastTwilioCheck?.toISOString() || null,
-        maxUsageDaily,
-        maxUsageWeekly,
-        maxUsageMonthly,
-        availabilityByPlan: {
-          daily: n.isAvailable && n.isValid && n.usageCount < maxUsageDaily,
-          weekly: n.isAvailable && n.isValid && n.usageCount < maxUsageWeekly,
-          monthly: n.isAvailable && n.isValid && n.usageCount < maxUsageMonthly,
-        },
-        createdAt: n.createdAt.toISOString(),
-      })));
+      res.json(numbers.map(n => {
+        const totalCompleted = n.usageCount;
+        const withoutSms = n.reservationsWithoutSms || 0;
+        const withSms = Math.max(0, totalCompleted - withoutSms);
+        const qualityScore = totalCompleted > 0 ? Math.round((withSms / totalCompleted) * 100) : null;
+        return {
+          id: n.id,
+          number: n.number,
+          country: n.country,
+          usageCount: n.usageCount,
+          isAvailable: n.isAvailable,
+          isValid: n.isValid,
+          isProblematic: n.isProblematic,
+          twilioActive: n.isValid,
+          lastTwilioCheck: n.lastTwilioCheck?.toISOString() || null,
+          maxUsageDaily,
+          maxUsageWeekly,
+          maxUsageMonthly,
+          availabilityByPlan: {
+            daily: n.isAvailable && n.isValid && n.usageCount < maxUsageDaily,
+            weekly: n.isAvailable && n.isValid && n.usageCount < maxUsageWeekly,
+            monthly: n.isAvailable && n.isValid && n.usageCount < maxUsageMonthly,
+          },
+          smsReceivedCount: n.smsReceivedCount || 0,
+          reservationsWithoutSms: withoutSms,
+          qualityScore,
+          createdAt: n.createdAt.toISOString(),
+        };
+      }));
     } catch (error) {
       console.error("Error fetching all numbers:", error);
       res.status(500).json({ error: "Failed to fetch numbers" });

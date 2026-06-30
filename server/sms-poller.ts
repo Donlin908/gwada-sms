@@ -39,6 +39,7 @@ async function pollOnce(): Promise<void> {
           content: msg.body,
           receivedAt: msg.dateSent,
         });
+        await storage.incrementSmsReceivedCount(r.phoneNumberId);
 
         let userEmail: string | undefined;
         if (r.sessionId !== "admin") {

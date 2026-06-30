@@ -165,6 +165,19 @@ export async function sendDailyReport(stats: {
   );
 }
 
+export async function notifyNumberRetiredForQuality(number: string, country: string, reservationsWithoutSms: number, replacementPurchased: boolean): Promise<void> {
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
+  const replacementMsg = replacementPurchased ? "\n✅ Un numéro de remplacement a été acheté automatiquement." : "\n⚠️ Aucun remplacement automatique (auto-achat désactivé).";
+  await sendAdminMessage(
+    `🚫 <b>Numéro retiré automatiquement — qualité insuffisante</b>\n` +
+    `Numéro : ${flag} <code>${number}</code>\n` +
+    `Réservations sans SMS reçu : <b>${reservationsWithoutSms}</b>\n` +
+    `Raison : trop de réservations sans réception de SMS (numéro probablement bloqué).` +
+    replacementMsg + `\n` +
+    `📅 ${new Date().toLocaleString("fr-FR")}`
+  );
+}
+
 export async function testConnection(): Promise<boolean> {
   return sendAdminMessage(
     `✅ <b>GWADA SMS — Surveillance Telegram active</b>\n` +

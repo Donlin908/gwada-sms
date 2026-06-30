@@ -61,6 +61,7 @@ interface AdminStats {
     maxUsagesMonthly: number;
     franceBundleRequired: boolean;
     maintenanceMode: boolean;
+    maxReservationsWithoutSms: number;
   };
   services: {
     emailConfigured: boolean;
@@ -412,6 +413,7 @@ export default function AdminPage() {
   const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(6);
   const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(3);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maxReservationsWithoutSms, setMaxReservationsWithoutSms] = useState(3);
   
   const handleLogout = () => {
     sessionStorage.removeItem("adminAuth");
@@ -523,6 +525,7 @@ export default function AdminPage() {
       setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 6);
       setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 3);
       setMaintenanceMode(stats.settings.maintenanceMode ?? false);
+      setMaxReservationsWithoutSms(stats.settings.maxReservationsWithoutSms ?? 3);
     }
   }, [stats]);
   
@@ -537,6 +540,7 @@ export default function AdminPage() {
         maxUsagesWeekly,
         maxUsagesMonthly,
         maintenanceMode,
+        maxReservationsWithoutSms,
       });
     },
     onSuccess: () => {
@@ -828,6 +832,25 @@ export default function AdminPage() {
               </div>
             </div>
             
+            <div className="space-y-2 border-t pt-4">
+              <Label htmlFor="max-res-without-sms" className="flex items-center gap-1.5">
+                <span className="text-orange-500">⚠</span>
+                Seuil blocage (réservations sans SMS)
+              </Label>
+              <Input
+                id="max-res-without-sms"
+                type="number"
+                min={1}
+                max={20}
+                value={maxReservationsWithoutSms}
+                onChange={(e) => setMaxReservationsWithoutSms(parseInt(e.target.value) || 3)}
+                data-testid="input-max-reservations-without-sms"
+              />
+              <p className="text-xs text-muted-foreground">
+                Un numéro est retiré automatiquement après ce nombre de réservations terminées sans aucun SMS reçu (numéro probablement bloqué par les opérateurs).
+              </p>
+            </div>
+
             <Button 
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
@@ -1004,6 +1027,7 @@ export default function AdminPage() {
                       <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesMonthly ?? 3})</span>
                     </th>
                     <th className="px-4 py-3 text-center font-medium">Utilisations</th>
+                    <th className="px-4 py-3 text-center font-medium">Qualité</th>
                     <th className="px-4 py-3 text-left font-medium">Dernière vérif.</th>
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
@@ -1091,6 +1115,38 @@ export default function AdminPage() {
                           );
                         })()}
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {(() => {
+                          const score = (num as any).qualityScore as number | null;
+                          const withoutSms = (num as any).reservationsWithoutSms as number;
+                          const total = num.usageCount;
+                          const tooltip = total > 0
+                            ? `${total - withoutSms}/${total} réservations avec SMS`
+                            : "Aucune réservation encore";
+                          if (score === null) {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-muted-foreground text-xs" title={tooltip}>
+                                <span className="h-2 w-2 rounded-full bg-muted-foreground/40 inline-block" />
+                                —
+                              </span>
+                            );
+                          }
+                          const badgeClass = score >= 80
+                            ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30"
+                            : score >= 50
+                            ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
+                            : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30";
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${badgeClass}`}
+                              title={tooltip}
+                              data-testid={`quality-score-${num.id}`}
+                            >
+                              {score}%
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {num.lastTwilioCheck
                           ? new Date(num.lastTwilioCheck).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
@@ -1111,7 +1167,7 @@ export default function AdminPage() {
                   ))}
                   {numbers?.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                      <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                         Aucun numéro dans le système
                       </td>
                     </tr>

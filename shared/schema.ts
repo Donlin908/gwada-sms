@@ -38,6 +38,8 @@ export const phoneNumbers = pgTable("phone_numbers", {
   isValid: boolean("is_valid").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),
   isProblematic: boolean("is_problematic").notNull().default(false),
+  smsReceivedCount: integer("sms_received_count").notNull().default(0),
+  reservationsWithoutSms: integer("reservations_without_sms").notNull().default(0),
   lastValidatedAt: timestamp("last_validated_at"),
   lastTwilioCheck: timestamp("last_twilio_check"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -62,6 +64,7 @@ export const reservations = pgTable("reservations", {
   startsAt: timestamp("starts_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  qualityChecked: boolean("quality_checked").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

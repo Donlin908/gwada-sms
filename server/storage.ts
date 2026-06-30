@@ -1,4 +1,4 @@
-import { eq, and, gt, lt, gte, desc } from "drizzle-orm";
+import { eq, and, gt, lt, gte, lte, desc, sql as drizzleSql } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -76,6 +76,13 @@ export interface IStorage {
 
   markNumberProblematic(phoneNumberId: string, isProblematic: boolean): Promise<void>;
   getProblematicNumbers(): Promise<PhoneNumber[]>;
+
+  incrementSmsReceivedCount(phoneNumberId: string): Promise<void>;
+  getSmsCountForPeriod(phoneNumberId: string, from: Date, to: Date): Promise<number>;
+  getExpiredUncheckedReservations(): Promise<Reservation[]>;
+  markReservationQualityChecked(reservationId: string): Promise<void>;
+  incrementReservationsWithoutSms(phoneNumberId: string): Promise<void>;
+  retireNumberForQuality(phoneNumberId: string): Promise<void>;
   getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]>;
   createCompensationToken(data: { token: string; reservationId: string; planId: string; country: Country; reason?: string; expiresAt: Date }): Promise<CompensationToken>;
   getCompensationToken(token: string): Promise<CompensationToken | undefined>;
@@ -329,6 +336,56 @@ export class DatabaseStorage implements IStorage {
 
   async getProblematicNumbers(): Promise<PhoneNumber[]> {
     return db.select().from(phoneNumbers).where(eq(phoneNumbers.isProblematic, true));
+  }
+
+  async incrementSmsReceivedCount(phoneNumberId: string): Promise<void> {
+    await db.update(phoneNumbers)
+      .set({ smsReceivedCount: drizzleSql`${phoneNumbers.smsReceivedCount} + 1` })
+      .where(eq(phoneNumbers.id, phoneNumberId));
+  }
+
+  async getSmsCountForPeriod(phoneNumberId: string, from: Date, to: Date): Promise<number> {
+    const result = await db
+      .select({ count: drizzleSql<number>`count(*)::int` })
+      .from(smsMessages)
+      .where(
+        and(
+          eq(smsMessages.phoneNumberId, phoneNumberId),
+          gte(smsMessages.receivedAt, from),
+          lte(smsMessages.receivedAt, to)
+        )
+      );
+    return result[0]?.count ?? 0;
+  }
+
+  async getExpiredUncheckedReservations(): Promise<Reservation[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.isActive, false),
+          eq(reservations.qualityChecked, false),
+          lt(reservations.expiresAt, now)
+        )
+      );
+  }
+
+  async markReservationQualityChecked(reservationId: string): Promise<void> {
+    await db.update(reservations).set({ qualityChecked: true }).where(eq(reservations.id, reservationId));
+  }
+
+  async incrementReservationsWithoutSms(phoneNumberId: string): Promise<void> {
+    await db.update(phoneNumbers)
+      .set({ reservationsWithoutSms: drizzleSql`${phoneNumbers.reservationsWithoutSms} + 1` })
+      .where(eq(phoneNumbers.id, phoneNumberId));
+  }
+
+  async retireNumberForQuality(phoneNumberId: string): Promise<void> {
+    await db.update(phoneNumbers)
+      .set({ isValid: false, isProblematic: true, isAvailable: false, lastValidatedAt: new Date() })
+      .where(eq(phoneNumbers.id, phoneNumberId));
   }
 
   async getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]> {
