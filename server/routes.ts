@@ -811,6 +811,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/admin/reviews/:id", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       await storage.deleteReview(req.params.id);
       res.json({ success: true });
@@ -957,6 +958,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/twilio-diag", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const diag = await twilioService.getTwilioDiagnostics();
       res.json(diag);
@@ -992,6 +994,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/stats", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const stats = await numberMonitor.getMonitoringStats();
       const emailConfigured = isEmailConfigured();
@@ -1032,6 +1035,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/settings", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const parseResult = adminSettingsSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -1079,6 +1083,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/run-monitoring", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const stats = await numberMonitor.runMonitoringCycle();
       res.json({
@@ -1092,6 +1097,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/numbers", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const [numbers, maxDailyStr, maxWeeklyStr, maxMonthlyStr] = await Promise.all([
         storage.getAllPhoneNumbers(),
@@ -1128,6 +1134,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/purchase-number", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       if (!twilioService.isConfigured()) {
         return res.status(503).json({ error: "Twilio is not configured" });
@@ -1186,6 +1193,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/sync-twilio", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       if (!twilioService.isConfigured()) {
         return res.status(503).json({ error: "Twilio is not configured" });
@@ -1205,6 +1213,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/reset-availability", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const allNumbers = await storage.getAllPhoneNumbers();
       let reset = 0;
@@ -1226,6 +1235,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/users", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const result = await db.execute(sql`
         SELECT id, username, email, first_name, last_name, email_verified, auth_provider, created_at
@@ -1240,6 +1250,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/telegram/status", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     res.json({
       configured: telegram.isConfigured(),
       botToken: process.env.TELEGRAM_BOT_TOKEN ? "***" + process.env.TELEGRAM_BOT_TOKEN.slice(-4) : null,
@@ -1248,6 +1259,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/telegram/test", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     const ok = await telegram.testConnection();
     if (ok) {
       res.json({ success: true, message: "Message de test envoyé sur Telegram ✅" });
@@ -1257,6 +1269,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/telegram/daily-report", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const allNumbers = await storage.getPhoneNumbers();
       const validFrance = allNumbers.filter((n: any) => n.country === "france" && n.isValid).length;
@@ -1933,6 +1946,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/test-sms", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       const { phoneNumberId, body, from } = req.body;
       const [msg] = await db.insert(smsMessages).values({
