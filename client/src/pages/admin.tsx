@@ -554,12 +554,18 @@ export default function AdminPage() {
   
   const purchaseNumberMutation = useMutation({
     mutationFn: async (country: string) => {
-      return apiRequest("POST", "/api/admin/purchase-number", { country });
+      const res = await apiRequest("POST", "/api/admin/purchase-number", { country });
+      return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Nouveau numéro acheté" });
+    onSuccess: (data: any) => {
+      toast({ title: "✅ Nouveau numéro acheté", description: data?.phoneNumber?.number ?? "" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
+    },
+    onError: (err: Error) => {
+      let msg = err.message;
+      try { msg = JSON.parse(msg.replace(/^\d+: /, "")).error ?? msg; } catch {}
+      toast({ title: "❌ Achat échoué", description: msg, variant: "destructive" });
     },
   });
   
