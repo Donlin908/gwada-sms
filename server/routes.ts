@@ -428,9 +428,9 @@ export async function registerRoutes(
         storage.getSetting("max_usages_monthly"),
       ]);
 
-      const maxUsageDaily = parseInt(maxDailyStr || "20");
-      const maxUsageWeekly = parseInt(maxWeeklyStr || "10");
-      const maxUsageMonthly = parseInt(maxMonthlyStr || "5");
+      const maxUsageDaily = parseInt(maxDailyStr || "10");
+      const maxUsageWeekly = parseInt(maxWeeklyStr || "6");
+      const maxUsageMonthly = parseInt(maxMonthlyStr || "3");
 
       const formattedNumbers = numbers.map(num => {
         const twilioActive = num.isValid;
@@ -655,7 +655,7 @@ export async function registerRoutes(
 
       // Check per-plan usage limits
       const settingKey = planId === "daily" ? "max_usages_daily" : planId === "weekly" ? "max_usages_weekly" : "max_usages_monthly";
-      const defaultLimit = planId === "daily" ? "20" : planId === "weekly" ? "10" : "5";
+      const defaultLimit = planId === "daily" ? "10" : planId === "weekly" ? "6" : "3";
       const maxUsageStr = await storage.getSetting(settingKey) || defaultLimit;
       const maxUsage = parseInt(maxUsageStr);
       if (phoneNumber.usageCount >= maxUsage) {
@@ -997,13 +997,13 @@ export async function registerRoutes(
       const emailConfigured = isEmailConfigured();
       const twilioConfigured = twilioService.isConfigured();
       
-      const usageThreshold = await storage.getSetting("usage_alert_threshold") || "100";
+      const usageThreshold = await storage.getSetting("usage_alert_threshold") || "8";
       const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled") || "false";
       const minPerCountry = await storage.getSetting("min_numbers_per_country") || "3";
       const maxPerCountry = await storage.getSetting("max_numbers_per_country") || "10";
-      const maxUsagesDaily = await storage.getSetting("max_usages_daily") || "20";
-      const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "10";
-      const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "5";
+      const maxUsagesDaily = await storage.getSetting("max_usages_daily") || "10";
+      const maxUsagesWeekly = await storage.getSetting("max_usages_weekly") || "6";
+      const maxUsagesMonthly = await storage.getSetting("max_usages_monthly") || "3";
       const franceBundleRequired = await storage.getSetting("france_bundle_required") || "false";
       const maintenanceMode = await storage.getSetting("maintenance_mode") || "false";
       
@@ -1099,9 +1099,9 @@ export async function registerRoutes(
         storage.getSetting("max_usages_weekly"),
         storage.getSetting("max_usages_monthly"),
       ]);
-      const maxUsageDaily = parseInt(maxDailyStr || "20");
-      const maxUsageWeekly = parseInt(maxWeeklyStr || "10");
-      const maxUsageMonthly = parseInt(maxMonthlyStr || "5");
+      const maxUsageDaily = parseInt(maxDailyStr || "10");
+      const maxUsageWeekly = parseInt(maxWeeklyStr || "6");
+      const maxUsageMonthly = parseInt(maxMonthlyStr || "3");
       res.json(numbers.map(n => ({
         id: n.id,
         number: n.number,
@@ -1307,7 +1307,7 @@ export async function registerRoutes(
       if (!phoneNumber.isValid) return res.status(409).json({ error: "Ce numéro n'est plus actif chez Twilio" });
 
       const settingKey = planId === "daily" ? "max_usages_daily" : planId === "weekly" ? "max_usages_weekly" : "max_usages_monthly";
-      const defaultLimit = planId === "daily" ? "20" : planId === "weekly" ? "10" : "5";
+      const defaultLimit = planId === "daily" ? "10" : planId === "weekly" ? "6" : "3";
       const maxUsageStr = await storage.getSetting(settingKey) || defaultLimit;
       const maxUsage = parseInt(maxUsageStr);
       if (phoneNumber.usageCount >= maxUsage) {

@@ -4,7 +4,7 @@ import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioCo
 import * as telegram from "./telegram-service";
 import type { Country } from "@shared/schema";
 
-const USAGE_ALERT_THRESHOLD = 100;
+const USAGE_ALERT_THRESHOLD = 8;
 const AUTO_PURCHASE_THRESHOLD = 100;
 const MIN_NUMBERS_PER_COUNTRY = 3;
 

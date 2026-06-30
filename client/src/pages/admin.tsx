@@ -407,9 +407,9 @@ export default function AdminPage() {
   const [autoPurchaseEnabled, setAutoPurchaseEnabled] = useState(false);
   const [minPerCountry, setMinPerCountry] = useState(3);
   const [maxPerCountry, setMaxPerCountry] = useState(10);
-  const [maxUsagesDaily, setMaxUsagesDaily] = useState(20);
-  const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(10);
-  const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(5);
+  const [maxUsagesDaily, setMaxUsagesDaily] = useState(10);
+  const [maxUsagesWeekly, setMaxUsagesWeekly] = useState(6);
+  const [maxUsagesMonthly, setMaxUsagesMonthly] = useState(3);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   
   const handleLogout = () => {
@@ -512,9 +512,9 @@ export default function AdminPage() {
       setAutoPurchaseEnabled(stats.settings.autoPurchaseEnabled);
       setMinPerCountry(stats.settings.minNumbersPerCountry);
       setMaxPerCountry(stats.settings.maxNumbersPerCountry ?? 10);
-      setMaxUsagesDaily(stats.settings.maxUsagesDaily ?? 20);
-      setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 10);
-      setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 5);
+      setMaxUsagesDaily(stats.settings.maxUsagesDaily ?? 10);
+      setMaxUsagesWeekly(stats.settings.maxUsagesWeekly ?? 6);
+      setMaxUsagesMonthly(stats.settings.maxUsagesMonthly ?? 3);
       setMaintenanceMode(stats.settings.maintenanceMode ?? false);
     }
   }, [stats]);
@@ -969,15 +969,15 @@ export default function AdminPage() {
                     <th className="px-4 py-3 text-center font-medium">Statut</th>
                     <th className="px-4 py-3 text-center font-medium">
                       <span className="text-blue-600 dark:text-blue-400">24h</span>
-                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesDaily ?? 20})</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesDaily ?? 10})</span>
                     </th>
                     <th className="px-4 py-3 text-center font-medium">
                       <span className="text-purple-600 dark:text-purple-400">7j</span>
-                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesWeekly ?? 10})</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesWeekly ?? 6})</span>
                     </th>
                     <th className="px-4 py-3 text-center font-medium">
                       <span className="text-orange-600 dark:text-orange-400">30j</span>
-                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesMonthly ?? 5})</span>
+                      <span className="text-xs text-muted-foreground ml-1">({stats?.settings.maxUsagesMonthly ?? 3})</span>
                     </th>
                     <th className="px-4 py-3 text-center font-medium">Utilisations</th>
                     <th className="px-4 py-3 text-left font-medium">Dernière vérif.</th>
@@ -1041,9 +1041,31 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant={getUsageColor(num.usageCount, stats?.settings.usageAlertThreshold ?? 100)} className="text-xs">
-                          {num.usageCount}
-                        </Badge>
+                        {(() => {
+                          const maxD = stats?.settings.maxUsagesDaily ?? 10;
+                          const pct = Math.min(100, Math.round((num.usageCount / maxD) * 100));
+                          const barColor =
+                            pct >= 80 ? "bg-red-500" :
+                            pct >= 50 ? "bg-yellow-400" :
+                            "bg-green-500";
+                          const textColor =
+                            pct >= 80 ? "text-red-600 dark:text-red-400" :
+                            pct >= 50 ? "text-yellow-600 dark:text-yellow-400" :
+                            "text-green-600 dark:text-green-400";
+                          return (
+                            <div className="flex flex-col items-center gap-1 min-w-[64px]">
+                              <span className={`text-xs font-semibold ${textColor}`}>
+                                {num.usageCount}/{maxD}
+                              </span>
+                              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${barColor}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {num.lastTwilioCheck
