@@ -811,6 +811,26 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/reviews", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      const allReviews = await storage.getAllReviewsAdmin();
+      res.json(allReviews);
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la récupération des avis" });
+    }
+  });
+
+  app.patch("/api/admin/reviews/:id/publish", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      const review = await storage.publishReview(req.params.id);
+      res.json(review);
+    } catch {
+      res.status(500).json({ error: "Erreur lors de la publication de l'avis" });
+    }
+  });
+
   app.delete("/api/admin/reviews/:id", async (req, res) => {
     if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {

@@ -163,6 +163,7 @@ export const reviews = pgTable("reviews", {
   name: text("name").notNull(),
   rating: integer("rating").notNull(),
   comment: text("comment").notNull(),
+  published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

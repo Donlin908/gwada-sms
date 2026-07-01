@@ -92,7 +92,9 @@ export interface IStorage {
   getAllCompensationTokens(): Promise<CompensationToken[]>;
 
   getReviews(): Promise<Review[]>;
+  getAllReviewsAdmin(): Promise<Review[]>;
   createReview(data: InsertReview): Promise<Review>;
+  publishReview(id: string): Promise<Review>;
   deleteReview(id: string): Promise<void>;
 
   createSupportTicket(data: InsertSupportTicket & { userId?: string }): Promise<SupportTicket>;
@@ -438,11 +440,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReviews(): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.published, true)).orderBy(desc(reviews.createdAt));
+  }
+
+  async getAllReviewsAdmin(): Promise<Review[]> {
     return db.select().from(reviews).orderBy(desc(reviews.createdAt));
   }
 
   async createReview(data: InsertReview): Promise<Review> {
     const [review] = await db.insert(reviews).values(data).returning();
+    return review;
+  }
+
+  async publishReview(id: string): Promise<Review> {
+    const [review] = await db.update(reviews).set({ published: true }).where(eq(reviews.id, id)).returning();
     return review;
   }
 

@@ -2155,12 +2155,28 @@ function AdminSupportTicketsCard() {
 function AdminReviewsCard() {
   const { toast } = useToast();
   const { data: reviewsList = [], isLoading } = useQuery<Review[]>({
-    queryKey: ["/api/reviews"],
+    queryKey: ["/api/admin/reviews"],
+  });
+
+  const publishedCount = reviewsList.filter((r) => r.published).length;
+  const pendingCount = reviewsList.filter((r) => !r.published).length;
+
+  const publishMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/admin/reviews/${id}/publish`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reviews"] });
+      toast({ title: "Avis publié", description: "L'avis est maintenant visible sur le site." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de publier l'avis.", variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/reviews/${id}`),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reviews"] });
       toast({ title: "Avis supprimé" });
     },
@@ -2169,6 +2185,9 @@ function AdminReviewsCard() {
     },
   });
 
+  const pending = reviewsList.filter((r) => !r.published);
+  const published = reviewsList.filter((r) => r.published);
+
   return (
     <Card data-testid="card-reviews">
       <CardHeader>
@@ -2176,44 +2195,110 @@ function AdminReviewsCard() {
           <Star className="h-5 w-5" />
           Avis clients
         </CardTitle>
-        <CardDescription>
-          {reviewsList.length} avis publié(s) — supprimez les commentaires inappropriés
+        <CardDescription className="flex items-center gap-3">
+          <span>{publishedCount} publié(s)</span>
+          {pendingCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              {pendingCount} en attente de modération
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         {isLoading ? (
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
-        ) : reviewsList.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-8">Aucun avis pour l'instant.</p>
         ) : (
-          <div className="space-y-3">
-            {reviewsList.map((review) => (
-              <div key={review.id} className="flex items-start justify-between gap-4 p-3 border rounded-lg" data-testid={`row-review-${review.id}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-sm">{review.name}</span>
-                    <span className="text-yellow-400">{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(review.createdAt).toLocaleDateString("fr-FR")}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground truncate">{review.comment}</p>
+          <>
+            {/* En attente */}
+            {pending.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  En attente ({pending.length})
+                </h4>
+                <div className="space-y-2">
+                  {pending.map((review) => (
+                    <div key={review.id} className="flex items-start justify-between gap-4 p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 rounded-lg" data-testid={`row-review-pending-${review.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm">{review.name}</span>
+                          <span className="text-yellow-400 text-xs">{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(review.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{review.comment}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 text-xs h-8 px-2"
+                          onClick={() => publishMutation.mutate(review.id)}
+                          disabled={publishMutation.isPending}
+                          data-testid={`button-publish-review-${review.id}`}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Publier
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 h-8 w-8"
+                          onClick={() => deleteMutation.mutate(review.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-review-${review.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  onClick={() => deleteMutation.mutate(review.id)}
-                  disabled={deleteMutation.isPending}
-                  data-testid={`button-delete-review-${review.id}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* Publiés */}
+            {published.length === 0 && pending.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-8">Aucun avis pour l'instant.</p>
+            ) : published.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2 text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Publiés ({published.length})
+                </h4>
+                <div className="space-y-2">
+                  {published.map((review) => (
+                    <div key={review.id} className="flex items-start justify-between gap-4 p-3 border rounded-lg" data-testid={`row-review-${review.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm">{review.name}</span>
+                          <span className="text-yellow-400 text-xs">{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(review.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{review.comment}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 h-8 w-8"
+                        onClick={() => deleteMutation.mutate(review.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-review-published-${review.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
