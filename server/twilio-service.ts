@@ -379,11 +379,13 @@ export async function purchasePhoneNumber(
       friendlyName: friendlyName || `GwadaSMS-${new Date().toISOString().split('T')[0]}`,
     };
     if (addressSid) params.addressSid = addressSid;
-    if (bundleSid && isFranceNumber) {
+    if (bundleSid && isFranceMobile) {
       params.bundleSid = bundleSid;
-      console.log(`[Twilio] Achat France ${isFranceMobile ? "Mobile" : "Local"} avec bundle ${bundleSid}`);
-    } else if (isFranceNumber && !bundleSid) {
-      console.warn(`[Twilio] Aucun bundle approuvé pour FR — l'achat risque d'échouer.`);
+      console.log(`[Twilio] Achat France Mobile avec bundle ${bundleSid}`);
+    } else if (isFranceMobile && !bundleSid) {
+      console.warn(`[Twilio] Aucun bundle ARCEP Mobile approuvé pour FR Mobile — l'achat risque d'échouer.`);
+    } else if (isFranceNumber && !isFranceMobile) {
+      console.log(`[Twilio] Achat France Local (+339) — pas de bundle requis`);
     }
 
     const purchased = await client.incomingPhoneNumbers.create(params);
