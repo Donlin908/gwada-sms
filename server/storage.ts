@@ -84,6 +84,7 @@ export interface IStorage {
   incrementReservationsWithoutSms(phoneNumberId: string): Promise<void>;
   retireNumberForQuality(phoneNumberId: string): Promise<void>;
   getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]>;
+  getActiveReservations(planId?: string): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]>;
   createCompensationToken(data: { token: string; reservationId: string; planId: string; country: Country; reason?: string; expiresAt: Date }): Promise<CompensationToken>;
   getCompensationToken(token: string): Promise<CompensationToken | undefined>;
   claimCompensationToken(token: string, newReservationId: string): Promise<void>;
@@ -390,7 +391,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveBasiqueReservations(): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]> {
+    return this.getActiveReservations("daily");
+  }
+
+  async getActiveReservations(planId?: string): Promise<(Reservation & { phoneNumber: PhoneNumber | null; user: User | null })[]> {
     const now = new Date();
+    const conditions = [
+      eq(reservations.isActive, true),
+      gt(reservations.expiresAt, now),
+    ];
+    if (planId) conditions.push(eq(reservations.planId, planId));
     const rows = await db
       .select({
         reservation: reservations,
@@ -400,13 +410,7 @@ export class DatabaseStorage implements IStorage {
       .from(reservations)
       .leftJoin(phoneNumbers, eq(reservations.phoneNumberId, phoneNumbers.id))
       .leftJoin(users, eq(reservations.userId, users.id))
-      .where(
-        and(
-          eq(reservations.planId, "daily"),
-          eq(reservations.isActive, true),
-          gt(reservations.expiresAt, now)
-        )
-      )
+      .where(and(...conditions))
       .orderBy(reservations.createdAt);
     return rows.map((r) => ({ ...r.reservation, phoneNumber: r.phoneNumber, user: r.user }));
   }

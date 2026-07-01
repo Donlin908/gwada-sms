@@ -2243,27 +2243,64 @@ export async function registerRoutes(
     }
   });
 
-  // Admin: list active basique reservations + compensation status
-  app.get("/api/admin/compensation/basique-reservations", async (req, res) => {
+  // Admin: list active reservations + compensation status (all plans or filtered by plan)
+  app.get("/api/admin/compensation/reservations", async (req, res) => {
     try {
       if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
-      const basique = await storage.getActiveBasiqueReservations();
+      const planFilter = typeof req.query.plan === "string" && req.query.plan !== "all" ? req.query.plan : undefined;
+      const activeRes = await storage.getActiveReservations(planFilter);
       const problematic = await storage.getProblematicNumbers();
       const problematicIds = new Set(problematic.map((n) => n.id));
 
-      const result = await Promise.all(basique.map(async (r) => {
+      const result = await Promise.all(activeRes.map(async (r) => {
         const tokens = await storage.getCompensationTokensByReservation(r.id);
         const activeToken = tokens.find((t) => !t.usedAt);
+        const baseUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
         return {
           reservationId: r.id,
+          planId: r.planId,
           phoneNumber: r.phoneNumber?.number ?? "—",
           phoneNumberId: r.phoneNumber?.id ?? null,
           country: r.phoneNumber?.country ?? "france",
+          telegramChatId: r.telegramChatId ?? null,
           isProblematic: r.phoneNumber ? problematicIds.has(r.phoneNumber.id) : false,
           userEmail: r.user?.email ?? null,
           expiresAt: r.expiresAt.toISOString(),
           hasActiveCompensation: !!activeToken,
-          compensationLink: activeToken ? `${req.protocol}://${req.get("host")}/compensation/${activeToken.token}` : null,
+          compensationLink: activeToken ? `${baseUrl}/compensation/${activeToken.token}` : null,
+        };
+      }));
+      res.json({ reservations: result, problematicCount: problematic.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Keep old route as alias for backward compat
+  app.get("/api/admin/compensation/basique-reservations", async (req, res) => {
+    req.query.plan = "daily";
+    // delegate to new endpoint handler by redirecting internally
+    const baseUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+    try {
+      if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+      const activeRes = await storage.getActiveReservations("daily");
+      const problematic = await storage.getProblematicNumbers();
+      const problematicIds = new Set(problematic.map((n) => n.id));
+      const result = await Promise.all(activeRes.map(async (r) => {
+        const tokens = await storage.getCompensationTokensByReservation(r.id);
+        const activeToken = tokens.find((t) => !t.usedAt);
+        return {
+          reservationId: r.id,
+          planId: r.planId,
+          phoneNumber: r.phoneNumber?.number ?? "—",
+          phoneNumberId: r.phoneNumber?.id ?? null,
+          country: r.phoneNumber?.country ?? "france",
+          telegramChatId: r.telegramChatId ?? null,
+          isProblematic: r.phoneNumber ? problematicIds.has(r.phoneNumber.id) : false,
+          userEmail: r.user?.email ?? null,
+          expiresAt: r.expiresAt.toISOString(),
+          hasActiveCompensation: !!activeToken,
+          compensationLink: activeToken ? `${baseUrl}/compensation/${activeToken.token}` : null,
         };
       }));
       res.json({ reservations: result, problematicCount: problematic.length });
@@ -2282,18 +2319,18 @@ export async function registerRoutes(
         sendToTelegram: z.boolean().optional()
       }).parse(req.body);
 
-      const basique = await storage.getActiveBasiqueReservations();
-      const reservation = basique.find((r) => r.id === reservationId);
+      const allActive = await storage.getActiveReservations();
+      const reservation = allActive.find((r) => r.id === reservationId);
       if (!reservation) return res.status(404).json({ error: "Réservation non trouvée ou non éligible" });
 
       const token = crypto.randomBytes(20).toString("hex");
       const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h
-      const country = (reservation.phoneNumber?.country ?? "france") as "france" | "usa";
+      const country = (reservation.phoneNumber?.country ?? "france") as "france" | "usa" | "canada";
 
       const comp = await storage.createCompensationToken({
         token,
         reservationId,
-        planId: "daily",
+        planId: reservation.planId, // use actual plan, not hardcoded "daily"
         country,
         reason: reason || "Problème de réception SMS",
         expiresAt,
@@ -2301,7 +2338,8 @@ export async function registerRoutes(
 
       const botUsername = "GwadasmsBot";
       const telegramLink = `https://t.me/${botUsername}?start=${token}`;
-      const webLink = `${req.protocol}://${req.get("host")}/compensation/${token}`;
+      const baseUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+      const webLink = `${baseUrl}/compensation/${token}`;
 
       let sentViaTelegram = false;
       if (sendToTelegram && reservation.telegramChatId) {

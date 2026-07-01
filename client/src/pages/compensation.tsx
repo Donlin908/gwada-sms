@@ -51,7 +51,8 @@ export default function CompensationPage() {
     },
   });
 
-  const countryLabel = data?.country === "france" ? "🇫🇷 France (+33)" : "🇺🇸 États-Unis (+1)";
+  const countryLabel = data?.country === "france" ? "🇫🇷 France (+33)" : data?.country === "canada" ? "🇨🇦 Canada (+1)" : "🇺🇸 États-Unis (+1)";
+  const planLabel = data?.planId === "daily" ? "24 heures" : data?.planId === "weekly" ? "7 jours" : data?.planId === "monthly" ? "30 jours" : "24 heures";
 
   if (isLoading) {
     return (
@@ -165,7 +166,7 @@ export default function CompensationPage() {
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <span className="font-mono font-medium">{num.number}</span>
                   </div>
-                  <Badge variant="secondary">{num.country === "france" ? "🇫🇷 FR" : "🇺🇸 US"}</Badge>
+                  <Badge variant="secondary">{num.country === "france" ? "🇫🇷 FR" : num.country === "canada" ? "🇨🇦 CA" : "🇺🇸 US"}</Badge>
                 </button>
               ))
             )}
@@ -187,7 +188,7 @@ export default function CompensationPage() {
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          Ce lien est à usage unique. Le numéro vous sera attribué pour 24 heures.
+          Ce lien est à usage unique. Le numéro vous sera attribué pour {planLabel}.
         </p>
       </div>
     </div>

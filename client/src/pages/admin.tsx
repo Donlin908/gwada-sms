@@ -544,12 +544,16 @@ export default function AdminPage() {
     onError: (err: Error) => toast({ title: "❌ Échec SMS", description: err.message, variant: "destructive" }),
   });
 
+  const [compensationPlanFilter, setCompensationPlanFilter] = useState<string>("all");
+
   const { data: basiqueData, isLoading: basiqueLoading, refetch: refetchBasique } = useQuery<{
     reservations: {
       reservationId: string;
+      planId: string;
       phoneNumber: string;
       phoneNumberId: string | null;
       country: string;
+      telegramChatId: string | null;
       isProblematic: boolean;
       userEmail: string | null;
       expiresAt: string;
@@ -558,7 +562,8 @@ export default function AdminPage() {
     }[];
     problematicCount: number;
   }>({
-    queryKey: ["/api/admin/compensation/basique-reservations"],
+    queryKey: ["/api/admin/compensation/reservations", compensationPlanFilter],
+    queryFn: () => fetch(`/api/admin/compensation/reservations?plan=${compensationPlanFilter}`, { credentials: "include" }).then(r => r.json()),
     enabled: isAuthenticated,
   });
 
@@ -569,7 +574,7 @@ export default function AdminPage() {
     mutationFn: ({ phoneNumberId, isProblematic }: { phoneNumberId: string; isProblematic: boolean }) =>
       apiRequest("POST", `/api/admin/numbers/${phoneNumberId}/problematic`, { isProblematic }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/reservations"] });
       toast({ title: "Statut mis à jour" });
     },
     onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
@@ -580,7 +585,7 @@ export default function AdminPage() {
       apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason, sendToTelegram }),
     onSuccess: (data: { link: string; telegramLink: string; token: string; sentViaTelegram?: boolean }) => {
       setGeneratedLink({ link: data.link, telegramLink: data.telegramLink, reservationId: data.token });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/basique-reservations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/reservations"] });
       
       if (data.sentViaTelegram) {
         toast({ title: "✅ Envoyé !", description: "Le lien a été envoyé directement au client via le Bot Telegram." });
@@ -1257,15 +1262,15 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
-      {/* Système de compensation Plan Basique */}
+      {/* Système de compensation — Tous les plans */}
       <Card data-testid="card-compensation">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gift className="h-5 w-5 text-primary" />
-            Compensation Plan Basique (2€)
+            Compensation — Tous les plans
           </CardTitle>
           <CardDescription>
-            Gérez les problèmes de réception SMS sur le plan basique. Signalez les numéros défaillants et générez des liens de remplacement.
+            Générez des liens de remplacement pour tout client rencontrant un problème sur n'importe quel plan.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1334,6 +1339,27 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Plan filter tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {[
+              { value: "all", label: "Tous les plans" },
+              { value: "daily", label: "24h" },
+              { value: "weekly", label: "7 jours" },
+              { value: "monthly", label: "30 jours" },
+            ].map(({ value, label }) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={compensationPlanFilter === value ? "default" : "outline"}
+                className="text-xs h-7"
+                onClick={() => setCompensationPlanFilter(value)}
+                data-testid={`button-comp-filter-${value}`}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
           {basiqueLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
@@ -1341,7 +1367,7 @@ export default function AdminPage() {
           ) : !basiqueData?.reservations?.length ? (
             <div className="text-center py-8 text-muted-foreground">
               <Gift className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Aucune réservation active sur le plan basique</p>
+              <p className="text-sm">Aucune réservation active{compensationPlanFilter !== "all" ? ` sur ce plan` : ""}</p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-md border">
@@ -1349,6 +1375,7 @@ export default function AdminPage() {
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">Numéro</th>
+                    <th className="px-3 py-2 text-left font-medium">Plan</th>
                     <th className="px-3 py-2 text-left font-medium">Client</th>
                     <th className="px-3 py-2 text-left font-medium">Expire le</th>
                     <th className="px-3 py-2 text-left font-medium">Statut</th>
@@ -1356,14 +1383,22 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {basiqueData.reservations.map((r) => (
+                  {basiqueData.reservations.map((r) => {
+                    const planLabel = r.planId === "daily" ? "24h" : r.planId === "weekly" ? "7j" : r.planId === "monthly" ? "30j" : r.planId;
+                    const countryFlag = r.country === "france" ? "🇫🇷" : r.country === "canada" ? "🇨🇦" : "🇺🇸";
+                    return (
                     <tr key={r.reservationId} className={`transition-colors ${r.isProblematic ? "bg-destructive/5" : "hover:bg-muted/30"}`} data-testid={`row-basique-${r.reservationId}`}>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4 text-muted-foreground" />
                           <span className="font-mono">{r.phoneNumber}</span>
-                          <Badge variant="outline" className="text-xs">{r.country === "france" ? "🇫🇷" : "🇺🇸"}</Badge>
+                          <Badge variant="outline" className="text-xs">{countryFlag}</Badge>
                         </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant="outline" className={`text-xs ${r.planId === "daily" ? "border-blue-400 text-blue-600" : r.planId === "weekly" ? "border-purple-400 text-purple-600" : "border-orange-400 text-orange-600"}`}>
+                          {planLabel}
+                        </Badge>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground text-xs">{r.userEmail ?? "Invité"}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
@@ -1411,13 +1446,7 @@ export default function AdminPage() {
                                   size="sm"
                                   variant="outline"
                                   className="text-xs h-7 border-primary text-primary hover:bg-primary/10"
-                                  onClick={() => {
-                                    generateCompensationMutation.mutate({ 
-                                      reservationId: r.reservationId, 
-                                      reason: compensationReason,
-                                      sendToTelegram: true 
-                                    });
-                                  }}
+                                  onClick={() => generateCompensationMutation.mutate({ reservationId: r.reservationId, reason: compensationReason, sendToTelegram: true })}
                                   disabled={generateCompensationMutation.isPending}
                                   data-testid={`button-send-tg-${r.reservationId}`}
                                 >
@@ -1441,7 +1470,8 @@ export default function AdminPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1898,6 +1928,7 @@ function AdminSupportTicketsCard() {
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [compLinks, setCompLinks] = useState<Record<string, string>>({});
 
   const { data: tickets = [], isLoading, refetch } = useQuery<SupportTicket[]>({
     queryKey: ["/api/admin/support/tickets"],
@@ -1913,6 +1944,18 @@ function AdminSupportTicketsCard() {
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de mettre à jour le ticket.", variant: "destructive" });
     },
+  });
+
+  const generateCompFromTicketMutation = useMutation({
+    mutationFn: ({ reservationId, reason }: { reservationId: string; reason: string }) =>
+      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }),
+    onSuccess: (data: { link: string; token: string }, variables) => {
+      setCompLinks((prev) => ({ ...prev, [variables.reservationId]: data.link }));
+      navigator.clipboard.writeText(data.link).catch(() => {});
+      toast({ title: "✅ Lien généré et copié !", description: "Partagez-le au client." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/reservations"] });
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
   const openTickets = tickets.filter((t) => t.status === "open" || t.status === "in_progress");
@@ -2000,6 +2043,45 @@ function AdminSupportTicketsCard() {
                           data-testid={`textarea-ticket-reply-${ticket.id}`}
                         />
                       </div>
+
+                      {/* Compensation rapide depuis le ticket */}
+                      {ticket.reservationId && (ticket.status === "open" || ticket.status === "in_progress") && (
+                        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+                          <p className="text-xs font-medium text-primary flex items-center gap-1">
+                            <Gift className="h-3 w-3" /> Compensation rapide
+                          </p>
+                          {compLinks[ticket.reservationId] ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 text-xs bg-background border rounded px-2 py-1 truncate">{compLinks[ticket.reservationId]}</code>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => { navigator.clipboard.writeText(compLinks[ticket.reservationId!]); toast({ title: "Lien copié !" }); }}
+                                data-testid={`button-copy-comp-ticket-${ticket.id}`}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs border-primary text-primary hover:bg-primary/10 w-full"
+                              onClick={() => generateCompFromTicketMutation.mutate({
+                                reservationId: ticket.reservationId!,
+                                reason: `Ticket support : ${TICKET_CATEGORY_LABELS[ticket.category] ?? ticket.category}`,
+                              })}
+                              disabled={generateCompFromTicketMutation.isPending}
+                              data-testid={`button-gen-comp-ticket-${ticket.id}`}
+                            >
+                              <Gift className="h-3 w-3 mr-1" />
+                              {generateCompFromTicketMutation.isPending ? "Génération…" : "Générer lien de compensation"}
+                            </Button>
+                          )}
+                          <p className="text-[10px] text-muted-foreground">Le client recevra un nouveau numéro pour la même durée que sa réservation initiale, gratuitement.</p>
+                        </div>
+                      )}
 
                       <div className="flex gap-2 flex-wrap items-center">
                         {["open", "in_progress", "resolved", "closed"].map((s) => (
