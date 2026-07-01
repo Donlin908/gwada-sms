@@ -162,14 +162,23 @@ function ProfitabilityTable({
 }) {
   const monthlyCostPerNumber = COST_PER_NUMBER + MONTHLY_COST;
   const totalMonthlyCost = totalNumbers * monthlyCostPerNumber;
-  
-  const calculateProfit = (pricePerUse: number, uses: number) => {
-    return (pricePerUse * uses) - monthlyCostPerNumber;
-  };
-  
+
+  // Hypothèse de ventes indépendante du seuil d'alerte
+  const [projectedSales, setProjectedSales] = useState(usageThreshold);
+
+  // Données réelles issues de la DB
+  const hasRealData = totalNumbers > 0 && totalUsage > 0;
+  const realAvgUsage = hasRealData ? totalUsage / totalNumbers : 0;
+
   const calculateROI = (revenue: number, cost: number) => {
     if (cost === 0) return 0;
     return ((revenue - cost) / cost) * 100;
+  };
+
+  const getHealthIndicator = (margin: number) => {
+    if (margin >= 80) return { emoji: "🟢", label: "Très rentable", color: "text-green-600 dark:text-green-400" };
+    if (margin >= 40) return { emoji: "🟡", label: "Rentabilité stable", color: "text-yellow-600 dark:text-yellow-400" };
+    return { emoji: "🔴", label: "Sous le seuil", color: "text-red-600 dark:text-red-400" };
   };
 
   return (
@@ -180,10 +189,12 @@ function ProfitabilityTable({
           Tableau de rentabilité
         </CardTitle>
         <CardDescription>
-          Analyse financière basée sur le coût Twilio de {COST_PER_NUMBER}€ + {MONTHLY_COST}€/mois par numéro
+          Analyse financière — coût Twilio {COST_PER_NUMBER}€ achat + {MONTHLY_COST}€/mois par numéro (= {monthlyCostPerNumber.toFixed(2)}€/mois)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+
+        {/* Métriques résumé */}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="p-4 rounded-lg border bg-muted/50">
             <div className="text-sm text-muted-foreground">Coût mensuel total</div>
@@ -195,26 +206,95 @@ function ProfitabilityTable({
             </div>
           </div>
           <div className="p-4 rounded-lg border bg-muted/50">
-            <div className="text-sm text-muted-foreground">Utilisations totales</div>
+            <div className="text-sm text-muted-foreground">Utilisations réelles totales</div>
             <div className="text-2xl font-bold">{totalUsage}</div>
             <div className="text-xs text-muted-foreground">
-              Moyenne: {totalNumbers > 0 ? (totalUsage / totalNumbers).toFixed(1) : 0} par numéro
+              {hasRealData
+                ? `Moyenne réelle : ${realAvgUsage.toFixed(1)} / numéro`
+                : "Tracking actif depuis le 01/07/2026"}
             </div>
           </div>
           <div className="p-4 rounded-lg border bg-muted/50">
-            <div className="text-sm text-muted-foreground">Seuil de remplacement</div>
+            <div className="text-sm text-muted-foreground">Seuil d'alerte (paramètre admin)</div>
             <div className="text-2xl font-bold">{usageThreshold}</div>
             <div className="text-xs text-muted-foreground">
-              utilisations par numéro
+              Distinct de l'hypothèse de projection ci-dessous
             </div>
           </div>
         </div>
 
+        {/* Rentabilité réelle — données DB */}
+        {hasRealData && (
+          <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20">
+            <h4 className="font-semibold mb-3 flex items-center gap-2 text-blue-700 dark:text-blue-400">
+              <BarChart3 className="h-4 w-4" />
+              Rentabilité réelle (données DB)
+            </h4>
+            <div className="grid gap-3 md:grid-cols-3 text-sm">
+              {PRICING_PLANS.map((plan) => {
+                const realRevenue = plan.price * realAvgUsage;
+                const realProfit = realRevenue - monthlyCostPerNumber;
+                const realMargin = realRevenue > 0 ? (realProfit / realRevenue) * 100 : 0;
+                const health = getHealthIndicator(realMargin);
+                return (
+                  <div key={plan.name} className="p-3 rounded-lg bg-white dark:bg-slate-900 border">
+                    <div className="font-medium">{plan.name} ({plan.price}€)</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {realAvgUsage.toFixed(1)} ventes/numéro en moyenne
+                    </div>
+                    <div className="mt-2 font-mono font-bold text-base">
+                      {realProfit > 0
+                        ? <span className="text-green-600 dark:text-green-400">+{realProfit.toFixed(2)}€</span>
+                        : <span className="text-red-600 dark:text-red-400">{realProfit.toFixed(2)}€</span>
+                      }
+                    </div>
+                    <div className={`text-xs font-medium mt-1 ${health.color}`}>
+                      {health.emoji} {health.label} — {realMargin.toFixed(1)}% marge
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Basé sur {totalUsage} réservations réelles sur {totalNumbers} numéros (moyenne : {realAvgUsage.toFixed(1)} utilisations/numéro)
+            </p>
+          </div>
+        )}
+
+        {!hasRealData && (
+          <div className="p-4 rounded-lg border border-dashed bg-muted/30 text-center text-sm text-muted-foreground">
+            <BarChart3 className="h-5 w-5 mx-auto mb-1 opacity-50" />
+            Données réelles disponibles dès la première réservation — tracking activé le 01/07/2026
+          </div>
+        )}
+
+        {/* Projection par hypothèse de ventes */}
         <div>
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Rentabilité par formule (sur {usageThreshold} utilisations)
-          </h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Projection (hypothèse de ventes)
+            </h4>
+            <div className="flex items-center gap-2 text-sm">
+              <Label htmlFor="projected-sales" className="text-muted-foreground whitespace-nowrap">
+                Ventes / numéro :
+              </Label>
+              <Input
+                id="projected-sales"
+                data-testid="input-projected-sales"
+                type="number"
+                min={1}
+                max={500}
+                value={projectedSales}
+                onChange={(e) => setProjectedSales(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-20 h-7 text-sm text-center"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            ⚠️ Ce chiffre est une <strong>hypothèse de simulation</strong>, indépendante du seuil d'alerte ({usageThreshold}). 
+            Modifie-le pour explorer différents scénarios.
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -230,11 +310,10 @@ function ProfitabilityTable({
               </thead>
               <tbody>
                 {PRICING_PLANS.map((plan) => {
-                  const revenue = plan.price * usageThreshold;
+                  const revenue = plan.price * projectedSales;
                   const profit = revenue - monthlyCostPerNumber;
                   const margin = (profit / revenue) * 100;
                   const roi = calculateROI(revenue, monthlyCostPerNumber);
-                  
                   return (
                     <tr key={plan.name} className="border-b hover-elevate">
                       <td className="py-3 px-3">
@@ -242,12 +321,8 @@ function ProfitabilityTable({
                         <div className="text-xs text-muted-foreground">{plan.duration}</div>
                       </td>
                       <td className="text-right py-3 px-3 font-mono">{plan.price} €</td>
-                      <td className="text-right py-3 px-3 font-mono font-medium">
-                        {revenue.toFixed(0)} €
-                      </td>
-                      <td className="text-right py-3 px-3 font-mono text-destructive">
-                        {monthlyCostPerNumber.toFixed(2)} €
-                      </td>
+                      <td className="text-right py-3 px-3 font-mono font-medium">{revenue.toFixed(0)} €</td>
+                      <td className="text-right py-3 px-3 font-mono text-destructive">{monthlyCostPerNumber.toFixed(2)} €</td>
                       <td className="text-right py-3 px-3 font-mono font-bold text-green-600 dark:text-green-400">
                         {profit.toFixed(2)} €
                       </td>
@@ -265,6 +340,7 @@ function ProfitabilityTable({
           </div>
         </div>
 
+        {/* Métriques par utilisateur */}
         <div>
           <h4 className="font-semibold mb-3 flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -283,10 +359,9 @@ function ProfitabilityTable({
               </thead>
               <tbody>
                 {PRICING_PLANS.map((plan) => {
-                  const costPerUser = monthlyCostPerNumber / usageThreshold;
+                  const costPerUser = monthlyCostPerNumber / projectedSales;
                   const profitPerUser = plan.price - costPerUser;
                   const costPercentage = (costPerUser / plan.price) * 100;
-                  
                   return (
                     <tr key={plan.name} className="border-b hover-elevate">
                       <td className="py-3 px-3">
@@ -312,10 +387,11 @@ function ProfitabilityTable({
             </table>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Coût par utilisateur = Coût mensuel du numéro ({monthlyCostPerNumber.toFixed(2)}€) ÷ Seuil d'utilisation ({usageThreshold})
+            Coût par utilisateur = {monthlyCostPerNumber.toFixed(2)}€ ÷ {projectedSales} ventes hypothétiques
           </p>
         </div>
 
+        {/* Seuil de rentabilité */}
         <div className="p-4 rounded-lg border bg-green-50 dark:bg-green-950/20">
           <h4 className="font-semibold mb-2 text-green-700 dark:text-green-400">Seuil de rentabilité</h4>
           <div className="grid gap-2 md:grid-cols-3 text-sm">
@@ -330,7 +406,7 @@ function ProfitabilityTable({
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Nombre minimum d'utilisations pour couvrir le coût mensuel d'un numéro
+            Nombre minimum de ventes pour couvrir les {monthlyCostPerNumber.toFixed(2)}€ de coût mensuel par numéro
           </p>
         </div>
       </CardContent>
