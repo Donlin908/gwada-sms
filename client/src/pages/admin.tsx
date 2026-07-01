@@ -1118,7 +1118,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 font-mono font-medium">{num.number}</td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className="text-xs">
-                          {num.country === "france" ? "🇫🇷 France" : "🇺🇸 USA"}
+                          {num.country === "france" ? "🇫🇷 France" : num.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -1167,19 +1167,21 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-center">
                         {(() => {
                           const maxD = stats?.settings.maxUsagesDaily ?? 10;
-                          const pct = Math.min(100, Math.round((num.usageCount / maxD) * 100));
-                          const barColor =
-                            pct >= 80 ? "bg-red-500" :
-                            pct >= 50 ? "bg-yellow-400" :
-                            "bg-green-500";
-                          const textColor =
-                            pct >= 80 ? "text-red-600 dark:text-red-400" :
-                            pct >= 50 ? "text-yellow-600 dark:text-yellow-400" :
-                            "text-green-600 dark:text-green-400";
+                          const maxW = stats?.settings.maxUsagesWeekly ?? 6;
+                          const maxM = stats?.settings.maxUsagesMonthly ?? 3;
+                          const u = num.usageCount;
+                          const pct = Math.min(100, Math.round((u / maxD) * 100));
+                          // Couleur basée sur les plans réellement bloqués
+                          const allBlocked   = u >= maxD;
+                          const weeklyBlocked = u >= maxW;
+                          const monthlyBlocked = u >= maxM;
+                          const barColor = allBlocked ? "bg-red-500" : weeklyBlocked ? "bg-orange-400" : monthlyBlocked ? "bg-yellow-400" : "bg-green-500";
+                          const textColor = allBlocked ? "text-red-600 dark:text-red-400" : weeklyBlocked ? "text-orange-600 dark:text-orange-400" : monthlyBlocked ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400";
+                          const tooltip = allBlocked ? "Tous les plans bloqués" : weeklyBlocked ? "Plans 7j et 30j bloqués" : monthlyBlocked ? "Plan 30j bloqué" : "Tous les plans disponibles";
                           return (
-                            <div className="flex flex-col items-center gap-1 min-w-[64px]">
+                            <div className="flex flex-col items-center gap-1 min-w-[64px]" title={tooltip}>
                               <span className={`text-xs font-semibold ${textColor}`}>
-                                {num.usageCount}/{maxD}
+                                {u}/{maxD}
                               </span>
                               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
