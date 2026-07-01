@@ -96,7 +96,8 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
     return false;
   }
 
-  const countryName = data.country === "france" ? "France" : "USA";
+  const countryName = data.country === "france" ? "France" : data.country === "canada" ? "Canada" : "USA";
+  const countryFlag = data.country === "france" ? "🇫🇷" : data.country === "canada" ? "🇨🇦" : "🇺🇸";
   
   try {
     await transporter.sendMail({
@@ -109,7 +110,7 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
           
           <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0;">
             <p style="margin: 0; font-size: 16px;">
-              Le numéro <strong>${data.phoneNumber}</strong> (${countryName}) a atteint 
+              Le numéro ${countryFlag} <strong>${data.phoneNumber}</strong> (${countryName}) a atteint 
               <strong>${data.usageCount} utilisations</strong>.
             </p>
           </div>
@@ -225,7 +226,8 @@ export async function sendNewNumberNotification(data: NewNumberPurchasedData): P
     return false;
   }
 
-  const countryName = data.country === "france" ? "France" : "USA";
+  const countryName = data.country === "france" ? "France" : data.country === "canada" ? "Canada" : "USA";
+  const countryFlag = data.country === "france" ? "🇫🇷" : data.country === "canada" ? "🇨🇦" : "🇺🇸";
   
   try {
     await transporter.sendMail({
@@ -238,7 +240,7 @@ export async function sendNewNumberNotification(data: NewNumberPurchasedData): P
           
           <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; margin: 20px 0;">
             <p style="margin: 0; font-size: 16px;">
-              Un nouveau numéro a été acheté : <strong>${data.phoneNumber}</strong> (${countryName})
+              Un nouveau numéro a été acheté : ${countryFlag} <strong>${data.phoneNumber}</strong> (${countryName})
             </p>
           </div>
           

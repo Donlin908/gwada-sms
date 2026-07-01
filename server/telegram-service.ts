@@ -86,17 +86,18 @@ export async function notifyNewPayment(options: {
 }
 
 export async function notifyNumberPurchased(phoneNumber: string, country: string, reason: string): Promise<void> {
-  const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
+  const countryLabel = country === "france" ? "France" : country === "canada" ? "Canada" : "USA";
   await sendAdminMessage(
     `📱 <b>Numéro acheté automatiquement</b>\n` +
-    `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
+    `Numéro : ${flag} <code>${phoneNumber}</code> (${countryLabel})\n` +
     `Raison : ${reason}\n` +
     `📅 ${new Date().toLocaleString("fr-FR")}`
   );
 }
 
 export async function notifyHighUsage(phoneNumber: string, country: string, usageCount: number, threshold: number): Promise<void> {
-  const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
   await sendAdminMessage(
     `⚠️ <b>Numéro proche du seuil d'utilisation</b>\n` +
     `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
@@ -106,7 +107,7 @@ export async function notifyHighUsage(phoneNumber: string, country: string, usag
 }
 
 export async function notifyNumberInvalidated(phoneNumber: string, country: string): Promise<void> {
-  const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
   await sendAdminMessage(
     `🔴 <b>Numéro invalidé (disparu de Twilio)</b>\n` +
     `Numéro : ${flag} <code>${phoneNumber}</code>\n` +
@@ -115,7 +116,7 @@ export async function notifyNumberInvalidated(phoneNumber: string, country: stri
 }
 
 export async function notifySmsReceived(phoneNumber: string, from: string, body: string, country: string, userEmail?: string): Promise<void> {
-  const flag = country === "france" ? "🇫🇷" : "🇺🇸";
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
   const preview = body.length > 200 ? body.slice(0, 200) + "…" : body;
   const clientInfo = userEmail ? `\nClient : <code>${userEmail}</code>` : "";
   await sendAdminMessage(
