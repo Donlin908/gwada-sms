@@ -44,6 +44,7 @@ interface AdminStats {
   totalNumbers: number;
   franceNumbers: number;
   usaNumbers: number;
+  canadaNumbers: number;
   numbersAtLimit: number;
   totalUsage: number;
   alertsSent: number;
@@ -758,7 +759,7 @@ export default function AdminPage() {
         </div>
       )}
       
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <StatCard 
           title="Total numéros" 
           value={stats?.totalNumbers ?? 0} 
@@ -776,6 +777,12 @@ export default function AdminPage() {
           value={stats?.usaNumbers ?? 0} 
           icon={Phone}
           description="Numéros américains (+1)"
+        />
+        <StatCard 
+          title="Canada" 
+          value={stats?.canadaNumbers ?? 0} 
+          icon={Phone}
+          description="Numéros canadiens (+1)"
         />
         <StatCard 
           title="À la limite" 
@@ -1659,7 +1666,7 @@ function AdminReservationSms({ phoneNumberId }: { phoneNumberId: string }) {
 
 function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
   const { toast } = useToast();
-  const [selectedCountry, setSelectedCountry] = useState<"france" | "usa">("france");
+  const [selectedCountry, setSelectedCountry] = useState<"france" | "usa" | "canada">("france");
   const [selectedNumberId, setSelectedNumberId] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<"daily" | "weekly" | "monthly">("monthly");
   const [expandedSmsId, setExpandedSmsId] = useState<string | null>(null);
@@ -1830,7 +1837,7 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
         <div className="space-y-4 border-t pt-4">
           <p className="text-sm font-medium">Réserver un numéro</p>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant={selectedCountry === "france" ? "default" : "outline"}
               size="sm"
@@ -1847,13 +1854,21 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
             >
               🇺🇸 USA
             </Button>
+            <Button
+              variant={selectedCountry === "canada" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setSelectedCountry("canada"); setSelectedNumberId(""); }}
+              data-testid="button-country-canada"
+            >
+              🇨🇦 Canada
+            </Button>
           </div>
 
           <div className="space-y-2">
             <Label>Numéro disponible</Label>
             {availableNumbers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                Aucun numéro disponible pour {selectedCountry === "france" ? "la France" : "les USA"} en ce moment.
+                Aucun numéro disponible pour {selectedCountry === "france" ? "la France" : selectedCountry === "canada" ? "le Canada" : "les USA"} en ce moment.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

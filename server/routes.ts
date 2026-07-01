@@ -2410,8 +2410,13 @@ export async function registerRoutes(
       if (comp.usedAt) return res.status(410).json({ error: "Ce lien a déjà été utilisé" });
       if (new Date(comp.expiresAt) < new Date()) return res.status(410).json({ error: "Ce lien a expiré" });
 
-      // Get available numbers for same country
-      const available = await storage.getPhoneNumbers(comp.country as "france" | "usa");
+      // Get available numbers for all countries
+      const [frNums, usNums, caNums] = await Promise.all([
+        storage.getPhoneNumbers("france"),
+        storage.getPhoneNumbers("usa"),
+        storage.getPhoneNumbers("canada"),
+      ]);
+      const available = [...frNums, ...usNums, ...caNums];
       res.json({
         token: comp.token,
         country: comp.country,
