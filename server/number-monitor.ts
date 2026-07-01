@@ -246,15 +246,30 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
         synced++;
         console.log(`Synced new number: ${twilioNum.phoneNumber}`);
       } else {
-        // Number already in DB — always sync validity and restore availability if blocked
+        // Number already in DB — sync validity, availability, and fix country if wrong
         const smsCapable = twilioNum.capabilities.sms;
         const needsValidityUpdate = existing.isValid !== smsCapable || !existing.lastTwilioCheck;
         const needsAvailabilityRestore = smsCapable && !existing.isAvailable;
 
-        if (needsValidityUpdate) {
+        // Re-classify country using area codes (fixes numbers imported before Canada detection)
+        let correctCountry: Country = "usa";
+        if (twilioNum.phoneNumber.startsWith("+33")) {
+          correctCountry = "france";
+        } else if (twilioNum.phoneNumber.startsWith("+1") && twilioNum.phoneNumber.length >= 5) {
+          const areaCode = twilioNum.phoneNumber.substring(2, 5);
+          if (CANADA_AREA_CODES.has(areaCode)) correctCountry = "canada";
+        }
+        const needsCountryFix = existing.country !== correctCountry;
+
+        if (needsCountryFix) {
+          console.log(`[Sync] Re-classification pays: ${twilioNum.phoneNumber} ${existing.country} → ${correctCountry}`);
+        }
+
+        if (needsValidityUpdate || needsCountryFix) {
           await storage.updatePhoneNumber(existing.id, {
             isValid: smsCapable,
             lastTwilioCheck: new Date(),
+            ...(needsCountryFix ? { country: correctCountry } : {}),
           });
         } else {
           await storage.updatePhoneNumber(existing.id, { lastTwilioCheck: new Date() });
@@ -267,9 +282,8 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
             synced++;
             console.log(`Restored availability: ${twilioNum.phoneNumber}`);
           }
-        } else if (needsValidityUpdate) {
+        } else if (needsValidityUpdate || needsCountryFix) {
           synced++;
-          console.log(`Re-validated existing number: ${twilioNum.phoneNumber} (valid=${smsCapable})`);
         }
       }
     }

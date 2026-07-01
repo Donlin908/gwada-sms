@@ -45,7 +45,7 @@ export interface IStorage {
   getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
   getPhoneNumberByTwilioSid(twilioSid: string): Promise<PhoneNumber | undefined>;
   createPhoneNumber(data: InsertPhoneNumber): Promise<PhoneNumber>;
-  updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck'>>): Promise<void>;
+  updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck' | 'country'>>): Promise<void>;
   updatePhoneNumberAvailability(id: string, isAvailable: boolean): Promise<void>;
   updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void>;
   getPhoneNumbersNeedingTwilioCheck(olderThanMinutes: number): Promise<PhoneNumber[]>;
@@ -173,7 +173,7 @@ export class DatabaseStorage implements IStorage {
     return number;
   }
 
-  async updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck'>>): Promise<void> {
+  async updatePhoneNumber(id: string, data: Partial<Pick<PhoneNumber, 'isAvailable' | 'isValid' | 'lastValidatedAt' | 'lastTwilioCheck' | 'country'>>): Promise<void> {
     await db.update(phoneNumbers).set(data).where(eq(phoneNumbers.id, id));
   }
 
