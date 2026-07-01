@@ -45,6 +45,8 @@ export default function Contact() {
   const { data: currentUser } = useQuery<any>({ queryKey: ["/api/auth/me"] });
   const isLoggedIn = !!currentUser?.id;
 
+  const isEmailValid = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/support/tickets", {
@@ -207,7 +209,11 @@ export default function Contact() {
               <div className="text-4xl">✅</div>
               <p className="font-semibold">Ticket envoyé !</p>
               <p className="text-sm text-muted-foreground">
-                Notre équipe a été notifiée et reviendra vers vous rapidement.
+                {isLoggedIn
+                  ? "Notre équipe a été notifiée et vous répondra par email."
+                  : email
+                  ? <span>Notre réponse sera envoyée à <strong>{email}</strong>.</span>
+                  : "Notre équipe a été notifiée et reviendra vers vous rapidement."}
               </p>
               <Button onClick={handleClose} className="w-full mt-2">Fermer</Button>
             </div>
@@ -228,7 +234,9 @@ export default function Contact() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="contact-email">Email</Label>
+                    <Label htmlFor="contact-email">
+                      Email <span className="text-destructive">*</span>
+                    </Label>
                     <input
                       id="contact-email"
                       type="email"
@@ -238,6 +246,7 @@ export default function Contact() {
                       onChange={(e) => setEmail(e.target.value)}
                       data-testid="input-contact-email"
                     />
+                    <p className="text-xs text-muted-foreground">Vous recevrez notre réponse ici</p>
                   </div>
                 </div>
               )}
@@ -285,7 +294,7 @@ export default function Contact() {
                 <Button
                   className="flex-1"
                   onClick={() => submitMutation.mutate()}
-                  disabled={!category || message.length < 10 || submitMutation.isPending}
+                  disabled={!category || message.length < 10 || submitMutation.isPending || (!isLoggedIn && !isEmailValid(email))}
                   data-testid="button-submit-contact"
                 >
                   {submitMutation.isPending ? (

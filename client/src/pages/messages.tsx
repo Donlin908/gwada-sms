@@ -402,7 +402,11 @@ export default function Messages() {
               <div className="text-4xl">✅</div>
               <p className="font-semibold">Ticket envoyé !</p>
               <p className="text-sm text-muted-foreground">
-                Notre équipe a été notifiée et reviendra vers vous rapidement.
+                {isLoggedIn
+                  ? "Notre équipe a été notifiée et vous répondra par email."
+                  : supportEmail
+                  ? <span>Notre réponse sera envoyée à <strong>{supportEmail}</strong>.</span>
+                  : "Notre équipe a été notifiée et reviendra vers vous rapidement."}
               </p>
               <Button onClick={handleSupportClose} className="w-full mt-2">Fermer</Button>
             </div>
@@ -423,7 +427,9 @@ export default function Messages() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="support-email">Votre email</Label>
+                    <Label htmlFor="support-email">
+                      Votre email <span className="text-destructive">*</span>
+                    </Label>
                     <input
                       id="support-email"
                       type="email"
@@ -433,6 +439,7 @@ export default function Messages() {
                       onChange={(e) => setSupportEmail(e.target.value)}
                       data-testid="input-support-email"
                     />
+                    <p className="text-xs text-muted-foreground">Vous recevrez notre réponse ici</p>
                   </div>
                 </div>
               )}
@@ -486,7 +493,7 @@ export default function Messages() {
                 <Button
                   className="flex-1"
                   onClick={() => supportMutation.mutate()}
-                  disabled={!supportCategory || supportMessage.length < 10 || supportMutation.isPending}
+                  disabled={!supportCategory || supportMessage.length < 10 || supportMutation.isPending || (!isLoggedIn && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail))}
                   data-testid="button-submit-support"
                 >
                   {supportMutation.isPending ? (

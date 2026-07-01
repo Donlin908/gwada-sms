@@ -2032,6 +2032,31 @@ function AdminSupportTicketsCard() {
                       )}
 
                       <div className="space-y-2">
+                        {(() => {
+                          const notifEmail = ticket.userEmail || null;
+                          if (notifEmail) {
+                            return (
+                              <div className="flex items-center gap-1.5 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1.5">
+                                <Mail className="h-3.5 w-3.5 shrink-0" />
+                                <span>Notif. email envoyée à <strong>{notifEmail}</strong> lors de la sauvegarde</span>
+                              </div>
+                            );
+                          } else if (ticket.userId) {
+                            return (
+                              <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5">
+                                <Mail className="h-3.5 w-3.5 shrink-0" />
+                                <span>Email envoyé via le compte utilisateur lié</span>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="flex items-center gap-1.5 text-xs text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded px-2 py-1.5">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Aucun email — le client ne sera <strong>pas notifié</strong> automatiquement</span>
+                              </div>
+                            );
+                          }
+                        })()}
                         <Label className="text-xs">Réponse / note interne</Label>
                         <Textarea
                           rows={3}
