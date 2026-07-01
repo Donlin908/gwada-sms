@@ -5,6 +5,7 @@ const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
+const FROM_EMAIL = process.env.FROM_EMAIL || "contact@gwadasms.com";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -35,7 +36,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
 
   try {
     await transporter.sendMail({
-      from: `"GWADA SMS" <${SMTP_USER}>`,
+      from: `"GWADA SMS" <${FROM_EMAIL}>`,
       to: email,
       subject: "Vérifiez votre adresse email - GWADA SMS",
       html: `
@@ -101,7 +102,7 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
   
   try {
     await transporter.sendMail({
-      from: SMTP_USER,
+      from: `"GWADA SMS" <${FROM_EMAIL}>`,
       to: ADMIN_EMAIL,
       subject: `⚠️ GWADA SMS - Numéro ${data.phoneNumber} a atteint ${data.usageCount} utilisations`,
       html: `
@@ -167,7 +168,7 @@ export async function sendTicketResponseEmail(toEmail: string, data: TicketRespo
 
   try {
     await transporter.sendMail({
-      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      from: `"GWADA SMS Support" <${FROM_EMAIL}>`,
       to: toEmail,
       subject: `[GWADA SMS] Réponse à votre ticket #${data.ticketId}`,
       html: `
@@ -242,7 +243,7 @@ export async function sendNewTicketAdminEmail(data: NewTicketData): Promise<bool
 
   try {
     await transporter.sendMail({
-      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      from: `"GWADA SMS Support" <${FROM_EMAIL}>`,
       to: ADMIN_EMAIL,
       subject: `🎫 Nouveau ticket support — ${categoryLabel}`,
       html: `
@@ -309,7 +310,7 @@ export async function sendTicketConfirmationEmail(toEmail: string, data: Pick<Ne
 
   try {
     await transporter.sendMail({
-      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      from: `"GWADA SMS Support" <${FROM_EMAIL}>`,
       to: toEmail,
       subject: `[GWADA SMS] Votre ticket a bien été reçu`,
       html: `
@@ -366,7 +367,7 @@ export async function sendNewNumberNotification(data: NewNumberPurchasedData): P
   
   try {
     await transporter.sendMail({
-      from: SMTP_USER,
+      from: `"GWADA SMS" <${FROM_EMAIL}>`,
       to: ADMIN_EMAIL,
       subject: `✅ GWADA SMS - Nouveau numéro acheté: ${data.phoneNumber}`,
       html: `
