@@ -225,6 +225,7 @@ export class DatabaseStorage implements IStorage {
   async createReservation(data: InsertReservation): Promise<Reservation> {
     const [reservation] = await db.insert(reservations).values(data).returning();
     await this.updatePhoneNumberAvailability(data.phoneNumberId, false);
+    await this.incrementUsageCount(data.phoneNumberId);
     return reservation;
   }
 
