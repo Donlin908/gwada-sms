@@ -869,6 +869,28 @@ export async function registerRoutes(
         process.env.TELEGRAM_CHAT_ID ?? "",
         `🎫 <b>Nouveau ticket support</b>\nCatégorie : <b>${catLabel}</b>${numInfo}${userInfo ? "\n" + userInfo : ""}\n\n<code>${ticket.message.slice(0, 500)}</code>\n\n📅 ${new Date().toLocaleString("fr-FR")}`
       ).catch(() => {});
+
+      // Email admin : notification immédiate à la réception du ticket
+      const { sendNewTicketAdminEmail, sendTicketConfirmationEmail } = await import("./email-service.js");
+      sendNewTicketAdminEmail({
+        ticketId: ticket.id,
+        category: ticket.category,
+        message: ticket.message,
+        userName: resolvedName ?? null,
+        userEmail: resolvedEmail ?? null,
+        phoneNumber: ticket.phoneNumber ?? null,
+      }).catch((err) => console.error("sendNewTicketAdminEmail error:", err));
+
+      // Email utilisateur : confirmation de réception si on a son email
+      if (resolvedEmail) {
+        sendTicketConfirmationEmail(resolvedEmail, {
+          ticketId: ticket.id,
+          category: ticket.category,
+          message: ticket.message,
+          userName: resolvedName ?? null,
+        }).catch((err) => console.error("sendTicketConfirmationEmail error:", err));
+      }
+
       res.status(201).json({ id: ticket.id });
     } catch (err: any) {
       res.status(500).json({ error: "Erreur lors de la création du ticket" });

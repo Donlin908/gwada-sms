@@ -214,6 +214,141 @@ export async function sendTicketResponseEmail(toEmail: string, data: TicketRespo
   }
 }
 
+export interface NewTicketData {
+  ticketId: string;
+  category: string;
+  message: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  phoneNumber?: string | null;
+}
+
+export async function sendNewTicketAdminEmail(data: NewTicketData): Promise<boolean> {
+  if (!transporter || !ADMIN_EMAIL) {
+    console.log("Email not configured. New ticket not sent to admin:", data.ticketId);
+    return false;
+  }
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    sms_not_received: "SMS non reçu",
+    telegram: "Problème Telegram",
+    payment: "Problème de paiement",
+    wrong_number: "Numéro incorrect",
+    other: "Autre",
+  };
+
+  const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category;
+  const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
+
+  try {
+    await transporter.sendMail({
+      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      to: ADMIN_EMAIL,
+      subject: `🎫 Nouveau ticket support — ${categoryLabel}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h1 style="color: #16a34a; margin: 0; font-size: 24px;">GWADA SMS</h1>
+            <p style="color: #6b7280; margin-top: 4px; font-size: 14px;">Nouveau ticket support reçu</p>
+          </div>
+
+          <div style="background: #fef9c3; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 4px; margin-bottom: 20px;">
+            <p style="margin: 0; font-size: 14px; font-weight: bold; color: #92400e;">🎫 Ticket #${data.ticketId.slice(0, 8)} — ${categoryLabel}</p>
+            ${data.phoneNumber ? `<p style="margin: 4px 0 0; font-size: 13px; color: #78350f;">Numéro : ${data.phoneNumber}</p>` : ""}
+          </div>
+
+          ${data.userName || data.userEmail ? `
+          <div style="margin-bottom: 16px; font-size: 14px; color: #374151;">
+            ${data.userName ? `<p style="margin: 0;">👤 <strong>${data.userName}</strong></p>` : ""}
+            ${data.userEmail ? `<p style="margin: 4px 0 0;">📧 <a href="mailto:${data.userEmail}" style="color: #16a34a;">${data.userEmail}</a></p>` : ""}
+          </div>` : `<p style="font-size: 13px; color: #9ca3af; margin-bottom: 16px;">Utilisateur anonyme (pas d'email fourni)</p>`}
+
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 14px 18px; border-radius: 4px; margin-bottom: 24px;">
+            <p style="margin: 0 0 6px 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Message du client</p>
+            <p style="margin: 0; color: #1f2937; font-size: 14px; white-space: pre-wrap;">${data.message}</p>
+          </div>
+
+          <div style="text-align: center;">
+            <a href="${baseUrl}/admin" style="background-color: #16a34a; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold; display: inline-block;">
+              Répondre dans l'espace admin
+            </a>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            GWADA SMS — ${new Date().toLocaleString("fr-FR")}
+          </p>
+        </div>
+      `,
+    });
+    console.log(`New ticket admin email sent to ${ADMIN_EMAIL} for ticket #${data.ticketId}`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send new ticket admin email:", error);
+    return false;
+  }
+}
+
+export async function sendTicketConfirmationEmail(toEmail: string, data: Pick<NewTicketData, "ticketId" | "category" | "message" | "userName">): Promise<boolean> {
+  if (!transporter) {
+    console.log("Email not configured. Confirmation not sent for ticket", data.ticketId);
+    return false;
+  }
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    sms_not_received: "SMS non reçu",
+    telegram: "Problème Telegram",
+    payment: "Problème de paiement",
+    wrong_number: "Numéro incorrect",
+    other: "Autre",
+  };
+
+  const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category;
+  const greeting = data.userName ? `Bonjour ${data.userName},` : "Bonjour,";
+  const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
+
+  try {
+    await transporter.sendMail({
+      from: `"GWADA SMS Support" <${SMTP_USER}>`,
+      to: toEmail,
+      subject: `[GWADA SMS] Votre ticket a bien été reçu`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="color: #16a34a; margin: 0; font-size: 24px;">GWADA SMS</h1>
+            <p style="color: #6b7280; margin-top: 4px; font-size: 14px;">Service de numéros virtuels</p>
+          </div>
+
+          <p style="font-size: 16px; margin-bottom: 8px;">${greeting}</p>
+          <p style="font-size: 15px; color: #374151; margin-bottom: 24px;">
+            Nous avons bien reçu votre demande de support. Notre équipe vous répondra dans les <strong>meilleurs délais</strong> (généralement sous 24h).
+          </p>
+
+          <div style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px 18px; border-radius: 4px; margin-bottom: 24px;">
+            <p style="margin: 0 0 4px 0; font-size: 12px; color: #16a34a; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold;">Votre demande — ${categoryLabel}</p>
+            <p style="margin: 0; color: #374151; font-size: 14px; white-space: pre-wrap;">${data.message.slice(0, 300)}${data.message.length > 300 ? "…" : ""}</p>
+          </div>
+
+          <p style="font-size: 14px; color: #6b7280;">
+            Vous recevrez la réponse de notre équipe à cette adresse email. En cas d'urgence, vous pouvez aussi nous écrire directement via
+            <a href="${baseUrl}/contact" style="color: #16a34a;">notre page contact</a>.
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            GWADA SMS — Service de numéros virtuels pour les DOM-TOM
+          </p>
+        </div>
+      `,
+    });
+    console.log(`Ticket confirmation email sent to ${toEmail} for ticket #${data.ticketId}`);
+    return true;
+  } catch (error) {
+    console.error("Failed to send ticket confirmation email:", error);
+    return false;
+  }
+}
+
 export interface NewNumberPurchasedData {
   phoneNumber: string;
   country: string;
