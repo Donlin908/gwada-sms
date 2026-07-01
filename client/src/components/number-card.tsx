@@ -24,7 +24,13 @@ export function NumberCard({ phoneNumber, planId }: NumberCardProps) {
   const CountryFlag = phoneNumber.country === "france" ? FranceFlag : phoneNumber.country === "canada" ? CanadaFlag : UsaFlag;
   const countryName = phoneNumber.country === "france" ? "France" : phoneNumber.country === "canada" ? "Canada" : "États-Unis";
 
-  const isUnavailable = !phoneNumber.isAvailable || !phoneNumber.isValid;
+  const planAvailable =
+    !planId ||
+    (planId === "daily" && phoneNumber.availabilityByPlan?.daily !== false) ||
+    (planId === "weekly" && phoneNumber.availabilityByPlan?.weekly !== false) ||
+    (planId === "monthly" && phoneNumber.availabilityByPlan?.monthly !== false);
+
+  const isUnavailable = !phoneNumber.isAvailable || !phoneNumber.isValid || !planAvailable;
 
   return (
     <Card
