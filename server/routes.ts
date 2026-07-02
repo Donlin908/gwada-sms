@@ -555,9 +555,11 @@ export async function registerRoutes(
         }
       }
       
+      // Récupération unique de la réservation active (réutilisée pour Twilio ET le filtre DB)
+      const activeRes = await storage.getActiveReservation(phoneNumberId);
+
       if (twilioService.isConfigured()) {
         // Pass reservation start date so Twilio only returns messages from that period
-        const activeRes = await storage.getActiveReservation(phoneNumberId);
         const twilioMessages = await twilioService.getMessagesForNumber(phoneNumber.number, activeRes?.startsAt ?? undefined);
         
         for (const msg of twilioMessages) {
@@ -608,7 +610,9 @@ export async function registerRoutes(
         }
       }
       
-      const messages = await storage.getMessages(phoneNumberId);
+      // Filtrer les messages : ne montrer que ceux reçus APRÈS le début de la réservation active
+      // → les anciens messages d'autres clients ne sont jamais visibles
+      const messages = await storage.getMessages(phoneNumberId, activeRes?.startsAt ?? undefined);
       
       const formattedMessages = messages.map(msg => ({
         id: msg.id,

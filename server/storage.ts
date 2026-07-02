@@ -50,7 +50,7 @@ export interface IStorage {
   updatePhoneNumberValidity(id: string, isValid: boolean): Promise<void>;
   getPhoneNumbersNeedingTwilioCheck(olderThanMinutes: number): Promise<PhoneNumber[]>;
   
-  getMessages(phoneNumberId: string): Promise<SmsMessage[]>;
+  getMessages(phoneNumberId: string, since?: Date): Promise<SmsMessage[]>;
   createMessage(data: InsertSmsMessage): Promise<SmsMessage>;
   getMessageByTwilioSid(twilioMessageSid: string): Promise<SmsMessage | undefined>;
   
@@ -191,11 +191,15 @@ export class DatabaseStorage implements IStorage {
     return all.filter(n => !n.lastTwilioCheck || n.lastTwilioCheck < cutoff);
   }
 
-  async getMessages(phoneNumberId: string): Promise<SmsMessage[]> {
+  async getMessages(phoneNumberId: string, since?: Date): Promise<SmsMessage[]> {
+    const conditions = [eq(smsMessages.phoneNumberId, phoneNumberId)];
+    if (since) {
+      conditions.push(gte(smsMessages.receivedAt, since));
+    }
     return db
       .select()
       .from(smsMessages)
-      .where(eq(smsMessages.phoneNumberId, phoneNumberId))
+      .where(and(...conditions))
       .orderBy(smsMessages.receivedAt);
   }
 
