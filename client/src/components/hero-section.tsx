@@ -22,7 +22,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl" data-testid="text-hero-description">
-            Numéros français, américains et canadiens disponibles pour recevoir vos codes de vérification.
+            Numéros américains et canadiens disponibles pour recevoir vos codes de vérification.
             <br />
             <span className="font-medium">Service accessible depuis la Guadeloupe et les DOM.</span>
             <br />
@@ -30,15 +30,8 @@ export function HeroSection() {
           </p>
 
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link href="/numbers?country=france">
-              <Button size="lg" className="gap-2" data-testid="button-france">
-                <FranceFlag className="h-5 w-5" />
-                Numéro France
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/numbers?country=usa">
-              <Button size="lg" variant="outline" className="gap-2" data-testid="button-usa">
+              <Button size="lg" className="gap-2" data-testid="button-usa">
                 <UsaFlag className="h-5 w-5" />
                 Numéro États-Unis
                 <ArrowRight className="h-4 w-4" />
@@ -49,6 +42,13 @@ export function HeroSection() {
                 <CanadaFlag className="h-5 w-5" />
                 Numéro Canada
                 <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/numbers?country=france">
+              <Button size="lg" variant="ghost" className="gap-2 opacity-50" data-testid="button-france">
+                <FranceFlag className="h-5 w-5" />
+                France
+                <span className="text-xs font-normal">(indisponible)</span>
               </Button>
             </Link>
           </div>
