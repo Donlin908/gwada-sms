@@ -49,9 +49,15 @@ export function Header() {
             Numéros
           </Link>
           <a
-            href="#pricing"
+            href={location === "/" ? "#pricing" : "/#pricing"}
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             data-testid="link-pricing"
+            onClick={(e) => {
+              if (location === "/") {
+                e.preventDefault();
+                document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
           >
             Tarifs
           </a>

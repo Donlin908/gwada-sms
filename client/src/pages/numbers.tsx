@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Clock } from "lucide-react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { CountrySelector } from "@/components/country-selector";
@@ -9,6 +9,7 @@ import { NumberCard } from "@/components/number-card";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { type Country, type PhoneNumberResponse } from "@shared/schema";
 
 export default function Numbers() {
@@ -62,6 +63,15 @@ export default function Numbers() {
               Actualiser
             </Button>
           </div>
+
+          {selectedCountry === "france" && (
+            <Alert className="mb-6 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-france-unavailable">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                <strong>Numéros français temporairement indisponibles.</strong> Nous attendons l'activation par Twilio de l'accès aux numéros mobiles français (+336/+337). En attendant, vous pouvez utiliser nos numéros 🇺🇸 États-Unis ou 🇨🇦 Canada — aussi acceptés par la plupart des services de vérification SMS.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {isLoading ? (
             <div className="py-16">

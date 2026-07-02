@@ -1488,16 +1488,17 @@ export async function registerRoutes(
         .where(eq(reservations.id, id))
         .limit(1);
 
-      if (!reservation || reservation.sessionId !== "admin") {
-        return res.status(404).json({ error: "Réservation admin introuvable" });
+      if (!reservation) {
+        return res.status(404).json({ error: "Réservation introuvable" });
       }
 
       await db.update(reservations).set({ isActive: false }).where(eq(reservations.id, id));
       await db.update(phoneNumbers).set({ isAvailable: true }).where(eq(phoneNumbers.id, reservation.phoneNumberId));
+      console.log(`[Admin] Réservation ${id} libérée manuellement — numéro ${reservation.phoneNumberId} remis disponible`);
 
       res.json({ success: true });
     } catch (err: any) {
-      console.error("[Admin] Erreur libération réservation admin:", err.message);
+      console.error("[Admin] Erreur libération réservation:", err.message);
       res.status(500).json({ error: "Erreur lors de la libération" });
     }
   });
