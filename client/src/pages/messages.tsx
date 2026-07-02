@@ -327,18 +327,18 @@ export default function Messages() {
                     <Smartphone className="h-4 w-4 text-primary shrink-0" />
                     Sur mobile — application Telegram
                   </div>
-                  <Button
-                    className="w-full gap-2"
+                  <a
+                    href={telegramLinkData.deepLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full"
                     data-testid="button-open-telegram"
-                    onClick={() => {
-                      const token = telegramLinkData.token;
-                      window.location.href = `tg://resolve?domain=GwadasmsBot&start=${token}`;
-                      setTimeout(() => window.open(telegramLinkData.deepLink, "_blank"), 600);
-                    }}
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    Ouvrir @GwadasmsBot
-                  </Button>
+                    <Button className="w-full gap-2">
+                      <ExternalLink className="h-4 w-4" />
+                      Ouvrir @GwadasmsBot
+                    </Button>
+                  </a>
                 </div>
 
                 {/* Fallback web : commande à copier-coller */}
