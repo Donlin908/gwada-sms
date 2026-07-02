@@ -327,18 +327,20 @@ export default function Messages() {
                     <Smartphone className="h-4 w-4 text-primary shrink-0" />
                     Sur mobile — application Telegram
                   </div>
-                  <a
-                    href={telegramLinkData.deepLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full"
+                  <Button
+                    className="w-full gap-2"
                     data-testid="button-open-telegram"
+                    asChild
                   >
-                    <Button className="w-full gap-2">
+                    <a
+                      href={telegramLinkData.deepLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <ExternalLink className="h-4 w-4" />
                       Ouvrir @GwadasmsBot
-                    </Button>
-                  </a>
+                    </a>
+                  </Button>
                 </div>
 
                 {/* Fallback web : commande à copier-coller */}
