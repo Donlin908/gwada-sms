@@ -68,7 +68,7 @@ export default function Numbers() {
             <Alert className="mb-6 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-france-unavailable">
               <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               <AlertDescription className="text-amber-800 dark:text-amber-200">
-                <strong>Numéros français temporairement indisponibles.</strong> Nous attendons l'activation par Twilio de l'accès aux numéros mobiles français (+336/+337). En attendant, vous pouvez utiliser nos numéros 🇺🇸 États-Unis ou 🇨🇦 Canada — aussi acceptés par la plupart des services de vérification SMS.
+                <strong>Numéros français temporairement indisponibles.</strong> Veuillez utiliser nos numéros 🇺🇸 États-Unis ou 🇨🇦 Canada en attendant.
               </AlertDescription>
             </Alert>
           )}
