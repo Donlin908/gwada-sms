@@ -300,13 +300,13 @@ export default function Messages() {
 
       {/* ── Dialog Telegram ───────────────────────────────────────────────── */}
       <Dialog open={telegramDialogOpen} onOpenChange={setTelegramDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto">
+          <DialogHeader className="text-center sm:text-left">
+            <DialogTitle className="flex items-center justify-center sm:justify-start gap-2">
+              <MessageCircle className="h-5 w-5 text-primary shrink-0" />
               Recevoir vos SMS sur Telegram
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-center sm:text-left">
               {telegramConnected
                 ? "Vos SMS sont transmis automatiquement sur Telegram."
                 : "Ouvrez le bot Telegram puis appuyez sur Démarrer."}
@@ -324,7 +324,7 @@ export default function Messages() {
                 {/* Bouton principal : ouvre l'app Telegram (mobile) */}
                 <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <Smartphone className="h-4 w-4 text-primary" />
+                    <Smartphone className="h-4 w-4 text-primary shrink-0" />
                     Sur mobile — application Telegram
                   </div>
                   <Button
@@ -344,19 +344,20 @@ export default function Messages() {
                 {/* Fallback web : commande à copier-coller */}
                 <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <MessageCircle className="h-4 w-4 text-primary" />
+                    <MessageCircle className="h-4 w-4 text-primary shrink-0" />
                     Sur Telegram Web — copiez cette commande
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Ouvrez <a href="https://t.me/GwadasmsBot" target="_blank" rel="noopener noreferrer" className="underline text-primary">@GwadasmsBot</a> puis envoyez cette commande dans le chat :
                   </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 rounded bg-background border px-3 py-2 text-sm font-mono truncate">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <code className="flex-1 min-w-0 rounded bg-background border px-3 py-2 text-sm font-mono overflow-hidden text-ellipsis whitespace-nowrap block">
                       /start {telegramLinkData.token}
                     </code>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="shrink-0"
                       onClick={handleCopyCommand}
                       data-testid="button-copy-telegram-command"
                     >
