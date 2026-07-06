@@ -9,6 +9,7 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 ## Recent Changes (2026-07-06)
 
 - **Durcissement sécurité** : Ajout de Helmet (headers HTTP : CSP stricte en production autorisant Stripe.js/Google Fonts/Sentry, HSTS, X-Frame-Options, X-Content-Type-Options). Protection CSRF maison (double-submit cookie : cookie `csrf_token` non-httpOnly + header `X-CSRF-Token` requis sur POST/PUT/PATCH/DELETE vers `/api/*`, webhooks Stripe/Telegram exemptés). `client/src/lib/queryClient.ts` (`apiRequest`) attache automatiquement le header CSRF. Audit npm : 25 vulnérabilités réduites à 2 (mise à jour majeure nodemailer ; `xlsx` reste sans correctif mais n'est utilisé que par un script interne non exposé). Revue des logs serveur : aucune donnée sensible (mdp/token/carte) loggée en production.
+- **Fuite secret webhook Stripe corrigée** : `STRIPE_WEBHOOK_SECRET` était écrit en clair dans `.replit` (`[userenv.shared]`), committé dans l'historique git. Secret régénéré côté Stripe (endpoint `gwada-sms-webhook` / `we_1TdzbQCi3VTHILCdrLqXQX9w`), retiré de `.replit`, migré en secret Replit chiffré. ⚠️ Le déploiement VM de production doit être republié pour charger la nouvelle valeur (le process en cours tourne encore avec l'ancienne clé chargée au démarrage).
 
 ## Recent Changes (2026-06-17)
 
