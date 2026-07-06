@@ -62,7 +62,8 @@ export default function Dashboard() {
 
   const claimMutation = useMutation({
     mutationFn: async (phoneNumber: string) => {
-      return apiRequest("POST", "/api/user/reservations/claim", { phoneNumber });
+      const sessionId = localStorage.getItem("gwada_session_id") ?? "";
+      return apiRequest("POST", "/api/user/reservations/claim", { phoneNumber, sessionId });
     },
     onSuccess: async (data: any) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/user/reservations"] });

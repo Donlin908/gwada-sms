@@ -2,3 +2,4 @@
 - [Public URLs use prod domain](email-links-domain.md) — email/Telegram-webhook/Stripe-redirect URLs must use PUBLIC_URL||gwadasms.com, never REPLIT_DOMAINS; telegram-link must use session/guest auth not isAuthenticated()
 - [Secrets must never land in .replit](secrets-plaintext-in-replit-file.md) — .replit is git-tracked; use requestEnvVar not setEnvVars for anything sensitive, rotate at source if found exposed
 - [CSRF without extra deps](csrf-double-submit-cookie.md) — implemented double-submit-cookie CSRF manually (no csurf/cookie-parser needed); verify with curl, not the flaky e2e browser subagent
+- [IDOR on claim endpoints](idor-reservation-claim.md) — "claim my order/reservation" endpoints need a real possession secret, not just a public/enumerable business identifier

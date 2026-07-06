@@ -1,0 +1,9 @@
+---
+name: IDOR on "claim my reservation" style endpoints
+description: endpoints that reassign ownership of a resource by a semi-public identifier (phone number, order number, etc.) must require proof of possession, not just the identifier
+---
+`/api/user/reservations/claim` let a logged-in user reassign `userId` on ANY active reservation by supplying just the phone number — no check that they actually paid for it. The phone number was discoverable by anyone via a public `GET /api/numbers` listing (numbers of other users' active reservations were returned, just flagged `isAvailable:false`). Result: any authenticated attacker could steal another paying customer's reservation and then read their SMS/OTP codes through the normal per-reservation access-control check (which trusted `reservation.userId` alone).
+
+**Why:** "Claim"/"link my order" endpoints are a common pattern for linking a guest purchase to an account after the fact. It's tempting to key them off a business identifier (phone number, order number, email) because that's what the user has on hand — but if that identifier is guessable, enumerable, or exposed anywhere (even partially, e.g. behind an `isAvailable` flag), it is not a valid ownership proof by itself.
+
+**How to apply:** Any endpoint that reassigns ownership/access on an existing resource must require a real possession secret — e.g. the anonymous/guest session id set in the browser at the time of purchase (localStorage, not derivable from public data), a signed claim token emailed to the buyer, or the payment session id. Always also explicitly reject (403) if the resource is already owned by a *different* account, rather than silently overwriting. When auditing this pattern, trace forward from "what does this endpoint accept as proof" to "is that value ever exposed by another public/less-privileged endpoint" — that's exactly how this bug was found (`GET /api/numbers` leaking the claim key).

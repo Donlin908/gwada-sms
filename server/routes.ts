@@ -364,13 +364,19 @@ export async function registerRoutes(
     }
   });
 
-  // Claim a reservation that wasn't linked to the account (e.g. paid with different email)
+  // Claim a reservation that wasn't linked to the account (e.g. paid as a guest,
+  // then created an account with a different email). Requires proof of ownership
+  // via the guest sessionId (localStorage "gwada_session_id") used at payment time —
+  // knowing the phone number alone (public via GET /api/numbers) is NOT sufficient.
   app.post("/api/user/reservations/claim", async (req, res) => {
     try {
       const userId = req.session.userId || (req.user as any)?.dbUserId;
       if (!userId) return res.status(401).json({ error: "Non authentifié" });
 
-      const { phoneNumber } = z.object({ phoneNumber: z.string().min(5) }).parse(req.body);
+      const { phoneNumber, sessionId } = z.object({
+        phoneNumber: z.string().min(5),
+        sessionId: z.string().min(1),
+      }).parse(req.body);
 
       // Find the phone number in DB
       const [phone] = await db.select().from(phoneNumbers)
@@ -386,6 +392,19 @@ export async function registerRoutes(
       // Already belongs to this user
       if (reservation.userId === userId) {
         return res.status(200).json({ success: true, message: "Cette réservation vous appartient déjà.", alreadyOwned: true });
+      }
+
+      // Refuse outright if the reservation is already linked to a *different* account —
+      // never allow silently stealing an already-claimed reservation.
+      if (reservation.userId && reservation.userId !== userId) {
+        return res.status(403).json({ error: "Cette réservation appartient déjà à un autre compte." });
+      }
+
+      // Guest reservations must never have sessionId "admin" claimable this way,
+      // and the caller must prove ownership via the exact guest sessionId used at
+      // payment time (stored in their browser's localStorage), not just the number.
+      if (reservation.sessionId === "admin" || reservation.sessionId !== sessionId) {
+        return res.status(403).json({ error: "Impossible de vérifier que cette réservation vous appartient." });
       }
 
       // Link to current user

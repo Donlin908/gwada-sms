@@ -1,0 +1,21 @@
+J'ai trouvé le problème critique. En vérifiant la protection IDOR déjà documentée dans tes notes (/api/messages/:phoneNumberId — bien protégée, isAdmin ou owner par sessionId/userId), j'ai remonté la chaîne jusqu'à l'endpoint de récupération de réservation, et il y a une faille sérieuse.
+Faille critique — vol de réservation / vol de SMS d'un autre client (server/routes.ts:368-399)
+POST /api/user/reservations/claim prend juste un phoneNumber en paramètre. Il cherche la réservation active sur ce numéro et réassigne userId = l'utilisateur actuellement connecté — sans jamais vérifier que ce dernier a réellement payé pour ce numéro. La seule garde est if (reservation.userId === userId) déjà à toi, mais rien n'empêche de voler une réservation qui appartient à quelqu'un d'autre.
+Or GET /api/numbers (accessible sans authentification, routes.ts:416-460) renvoie le champ number en clair pour tous les numéros, y compris ceux actuellement réservés par d'autres clients payants (juste avec isAvailable: false).
+Chaîne d'exploitation concrète :
+
+N'importe qui liste /api/numbers?country=usa → récupère le numéro exact réservé par un client payant.
+Crée un compte gratuit.
+Appelle /api/user/reservations/claim avec ce numéro → la réservation lui est réassignée.
+Appelle /api/messages/:phoneNumberId → comme reservation.userId pointe maintenant vers lui, la vérification ownsByUser (routes.ts:548) le laisse passer.
+Il lit les SMS/codes OTP du client qui a payé (WhatsApp, Google, banque…) — exactement le contenu que le service est censé protéger.
+
+C'est le point le plus grave de tout l'audit : ça compromet directement la promesse de confidentialité du produit, et c'est exploitable dès maintenant en prod, sans compétence technique particulière.
+Correctif minimal à faire avant tout accès client : dans le handler /claim, refuser si reservation.userId est déjà défini et différent de l'appelant (403), et exiger en plus une preuve de propriété de la réservation invité — le même sessionId localStorage que celui utilisé au paiement (comme c'est déjà fait dans /api/messages), pas seulement le numéro de téléphone.
+Reste de la priorisation avant ouverture aux clients :
+Bloquant sécurité : corriger et retester cette faille de vol de réservation — priorité absolue, au-dessus de tout le reste.
+Bloquant en attente de ta réponse : rotation du STRIPE_WEBHOOK_SECRET (toujours pas confirmée depuis mon dernier message).
+Bloquant réglementaire : dépôt du KBIS chez Stripe.
+Bloquant business : déblocage des numéros France (ticket Twilio, endpoint /FR/Mobile en 404).
+À vérifier manuellement : toute la section "Tests Admin Manuel" de ta checklist Notion (paramètres, achats/synchro Twilio, table des numéros, tickets, comptes) reste non cochée.
+Rassurant : Helmet/CSP/CSRF sont bien testés en prod, les 19 routes admin sont bien protégées par session, le rate limiting est en place sur login/admin/paiement, les mots de passe utilisateurs sont hashés en bcrypt, et aucun autre secret en dur n'a été trouvé dans le repo.
