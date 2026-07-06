@@ -6,6 +6,10 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## Recent Changes (2026-07-06)
+
+- **Durcissement sécurité** : Ajout de Helmet (headers HTTP : CSP stricte en production autorisant Stripe.js/Google Fonts/Sentry, HSTS, X-Frame-Options, X-Content-Type-Options). Protection CSRF maison (double-submit cookie : cookie `csrf_token` non-httpOnly + header `X-CSRF-Token` requis sur POST/PUT/PATCH/DELETE vers `/api/*`, webhooks Stripe/Telegram exemptés). `client/src/lib/queryClient.ts` (`apiRequest`) attache automatiquement le header CSRF. Audit npm : 25 vulnérabilités réduites à 2 (mise à jour majeure nodemailer ; `xlsx` reste sans correctif mais n'est utilisé que par un script interne non exposé). Revue des logs serveur : aucune donnée sensible (mdp/token/carte) loggée en production.
+
 ## Recent Changes (2026-06-17)
 
 - **Correction Telegram (réception SMS sur @GwadasmsBot)** : le bouton « Ouvrir @GwadasmsBot » ne s'affichait jamais (spinner infini). Causes : (1) `GET /api/reservations/:id/telegram-link` exigeait `req.isAuthenticated()` (Google OAuth/Passport uniquement) → 401 pour les invités et les comptes email/mot de passe ; aligné sur le contrôle d'accès de `/api/messages` (admin OU `session.userId`/`req.user.id` OU `sessionId` invité). (2) Le frontend (`messages.tsx`) ne transmettait pas le `sessionId` invité dans la requête. (3) `setupTelegramWebhook` (server/index.ts) et les URLs de redirection Stripe utilisaient `REPLIT_DOMAINS` (domaine dev) au lieu de `PUBLIC_URL || https://gwadasms.com` → le clic « Démarrer » n'atteignait jamais le serveur live. `setupTelegramWebhook` ne s'exécute désormais qu'en production pour éviter que le serveur de dev ne détourne le webhook.

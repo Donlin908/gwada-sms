@@ -19,6 +19,8 @@ if (process.env.SENTRY_DSN) {
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import helmet from "helmet";
+import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -195,6 +197,67 @@ async function main() {
   );
 
   app.use(express.urlencoded({ extended: false }));
+
+  const isProd = process.env.NODE_ENV === "production";
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProd
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+              styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+              fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+              imgSrc: ["'self'", "data:", "https:"],
+              connectSrc: ["'self'", "https://api.stripe.com", "https://*.sentry.io", "https://*.ingest.sentry.io"],
+              frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
+              objectSrc: ["'none'"],
+              baseUri: ["'self'"],
+              upgradeInsecureRequests: [],
+            },
+          }
+        : false,
+      crossOriginEmbedderPolicy: false,
+    })
+  );
+
+  // ── Protection CSRF (double-submit cookie) ───────────────────────────
+  // Le cookie csrf_token n'est pas httpOnly : le frontend le lit et le
+  // renvoie dans l'en-tête X-CSRF-Token sur chaque requête de mutation.
+  // Les webhooks externes (Stripe, Telegram) n'utilisent pas de cookie de
+  // session et sont donc exemptés — ils sont déjà vérifiés par signature.
+  const CSRF_EXEMPT_PATHS = new Set(["/api/stripe/webhook", "/api/telegram/webhook"]);
+  const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+  function getCookieValue(req: Request, name: string): string | undefined {
+    const raw = req.headers.cookie;
+    if (!raw) return undefined;
+    const entry = raw.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+    return entry ? decodeURIComponent(entry.slice(name.length + 1)) : undefined;
+  }
+
+  app.use((req, res, next) => {
+    let token = getCookieValue(req, "csrf_token");
+    if (!token) {
+      token = crypto.randomBytes(32).toString("hex");
+      res.cookie("csrf_token", token, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    if (MUTATING_METHODS.has(req.method) && req.path.startsWith("/api") && !CSRF_EXEMPT_PATHS.has(req.path)) {
+      const headerToken = req.headers["x-csrf-token"];
+      if (!headerToken || headerToken !== token) {
+        return res.status(403).json({ message: "Requête refusée (jeton CSRF invalide ou manquant). Rechargez la page et réessayez." });
+      }
+    }
+
+    next();
+  });
 
   const PgSession = connectPgSimple(session);
   app.use(

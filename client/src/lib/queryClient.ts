@@ -7,14 +7,29 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+function getCsrfToken(): string | undefined {
+  const match = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith("csrf_token="));
+  return match ? decodeURIComponent(match.slice("csrf_token=".length)) : undefined;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const isMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase());
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+  if (isMutating) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
