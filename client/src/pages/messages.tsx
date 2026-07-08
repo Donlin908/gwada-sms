@@ -62,8 +62,17 @@ export default function Messages() {
     enabled: !!id && id !== "null",
   });
 
+  const guestSessionId = getGuestSessionId();
   const { data: messages, isLoading: isLoadingMessages, refetch, isRefetching } = useQuery<SmsMessageResponse[]>({
-    queryKey: [`/api/messages/${id}?sessionId=${encodeURIComponent(getGuestSessionId())}`],
+    queryKey: [`/api/messages/${id}`, guestSessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/messages/${id}`, {
+        credentials: "include",
+        headers: { "X-Session-Id": guestSessionId },
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
     refetchInterval: 10000,
     enabled: !!id && id !== "null",
   });
@@ -91,7 +100,15 @@ export default function Messages() {
   const reservation = userReservations?.find((r: any) => r.phoneNumberId === id && r.isActive) ?? directReservation;
 
   const { data: telegramLinkData, refetch: refetchTelegramLink } = useQuery<{ deepLink: string; token: string; connected: boolean }>({
-    queryKey: [`/api/reservations/${reservation?.id}/telegram-link?sessionId=${encodeURIComponent(getGuestSessionId())}`],
+    queryKey: [`/api/reservations/${reservation?.id}/telegram-link`, guestSessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/reservations/${reservation?.id}/telegram-link`, {
+        credentials: "include",
+        headers: { "X-Session-Id": guestSessionId },
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
     enabled: !!reservation?.id && telegramDialogOpen,
     refetchInterval: telegramDialogOpen && !telegramConnected ? 3000 : false,
   });

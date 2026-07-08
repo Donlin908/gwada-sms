@@ -17,6 +17,15 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 
+/** Lit le sessionId invité depuis le header X-Session-Id (prioritaire) ou
+ *  le query string ?sessionId= (rétro-compatibilité). Le header évite les
+ *  fuites via logs proxy, historique navigateur et Referer. */
+function readGuestSessionId(req: any): string | undefined {
+  const fromHeader = typeof req.headers["x-session-id"] === "string" ? req.headers["x-session-id"] : undefined;
+  const fromQuery  = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+  return fromHeader || fromQuery;
+}
+
 // ─── Source unique des ID de prix Stripe (test/live) ──────────────────────────
 // Utilisée par le site web ET le bot Telegram pour garantir que les paiements
 // fonctionnent partout. Test (dev local) : cartes fictives | Live (publié) : vraies cartes.
@@ -564,11 +573,11 @@ export async function registerRoutes(
       const isAdmin = req.session?.adminAuth === true;
       if (!isAdmin) {
         const reservation = await storage.getActiveReservation(phoneNumberId);
-        const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+        const sessionId = readGuestSessionId(req);
         const ownsByUser = !!reservation && !!req.session?.userId && reservation.userId === req.session.userId;
-        // L'identité invité (sessionId via query) ne doit JAMAIS débloquer une
-        // réservation admin (sessionId fixe "admin") : seul un admin authentifié
-        // (branche isAdmin ci-dessus) peut lire ces SMS.
+        // L'identité invité (sessionId via header X-Session-Id ou query fallback)
+        // ne doit JAMAIS débloquer une réservation admin (sessionId fixe "admin") :
+        // seul un admin authentifié (branche isAdmin ci-dessus) peut lire ces SMS.
         const ownsBySession = !!reservation && !!sessionId && reservation.sessionId !== "admin" && reservation.sessionId === sessionId;
         if (!ownsByUser && !ownsBySession) {
           return res.status(403).json({ error: "Non autorisé" });
@@ -730,8 +739,8 @@ export async function registerRoutes(
   app.get("/api/numbers/:id/check-usage", async (req, res) => {
     try {
       const { id } = req.params;
-      const sessionId = req.query.sessionId as string;
-      
+      const sessionId = readGuestSessionId(req);
+
       if (!sessionId) {
         return res.status(400).json({ error: "Session ID is required" });
       }
@@ -1596,7 +1605,7 @@ export async function registerRoutes(
       // s'affichait jamais (spinner infini).
       const isAdmin = req.session?.adminAuth === true;
       if (!isAdmin) {
-        const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+        const sessionId = readGuestSessionId(req);
         const loggedInUserId = req.session?.userId || (req.user as any)?.id;
         const ownsByUser = !!loggedInUserId && reservation.userId === loggedInUserId;
         const ownsBySession = !!sessionId && reservation.sessionId !== "admin" && reservation.sessionId === sessionId;
