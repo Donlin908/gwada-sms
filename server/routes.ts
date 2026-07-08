@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { type Country, pricingPlans, phoneNumbers, reservations, users, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
+import { type Country, pricingPlans, phoneNumbers, reservations, users, smsMessages, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
@@ -11,7 +11,7 @@ import { isEmailConfigured, sendVerificationEmail } from "./email-service";
 import * as telegram from "./telegram-service";
 import { z } from "zod";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
