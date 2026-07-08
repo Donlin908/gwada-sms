@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { type Country, pricingPlans, phoneNumbers, reservations, users, smsMessages, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
+import { getProvider } from "./sms-provider";
+import "./telnyx-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
 import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
@@ -64,6 +66,7 @@ const adminSettingsSchema = z.object({
 
 const purchaseNumberSchema = z.object({
   country: z.enum(["france", "usa", "canada"]),
+  provider: z.enum(["twilio", "telnyx"]).default("twilio"),
 });
 
 const adminLoginSchema = z.object({
@@ -493,14 +496,18 @@ export async function registerRoutes(
         try {
           const stale = await storage.getPhoneNumbersNeedingTwilioCheck(60);
           for (const num of stale.slice(0, 5)) {
-            const active = await twilioService.checkNumberActiveInTwilio(num.twilioSid);
+            let active = true;
+            try {
+              const prov = getProvider(num.provider || "twilio");
+              active = await prov.checkNumberActive(num.twilioSid);
+            } catch { /* provider not configured — skip */ }
             await storage.updatePhoneNumber(num.id, {
               lastTwilioCheck: new Date(),
               isValid: active,
               ...(active ? {} : { lastValidatedAt: new Date() }),
             });
             if (!active) {
-              console.log(`Number ${num.number} no longer active in Twilio — marked invalid`);
+              console.log(`Number ${num.number} no longer active on ${num.provider || "twilio"} — marked invalid`);
             }
           }
         } catch (e) {
@@ -587,58 +594,9 @@ export async function registerRoutes(
       // Récupération unique de la réservation active (réutilisée pour Twilio ET le filtre DB)
       const activeRes = await storage.getActiveReservation(phoneNumberId);
 
-      if (twilioService.isConfigured()) {
-        // Pass reservation start date so Twilio only returns messages from that period
-        const twilioMessages = await twilioService.getMessagesForNumber(phoneNumber.number, activeRes?.startsAt ?? undefined);
-        
-        for (const msg of twilioMessages) {
-          const existing = await storage.getMessageByTwilioSid(msg.sid);
-          if (!existing) {
-            await storage.createMessage({
-              phoneNumberId: phoneNumber.id,
-              twilioMessageSid: msg.sid,
-              sender: msg.from,
-              content: msg.body,
-              receivedAt: msg.dateSent,
-            });
-            // Alerte Telegram pour chaque nouveau SMS reçu
-            const rawResData = await db.execute(sql`
-              SELECT u.email, r.telegram_chat_id
-              FROM reservations r
-              JOIN users u ON r.user_id = u.id
-              WHERE r.phone_number_id = ${phoneNumber.id} AND r.expires_at > NOW()
-              LIMIT 1
-            `);
-            const resData = Array.isArray(rawResData) ? rawResData[0] : (rawResData as any)?.rows?.[0];
-            const userEmail = (resData as any)?.email;
-            const userChatId = (resData as any)?.telegram_chat_id;
+      // Les SMS sont écrits en base par le poller (Twilio) ou le webhook (Telnyx).
+      // Cette route lit uniquement depuis la base — agnostique du fournisseur.
 
-            // Notification Admin
-            telegram.notifySmsReceived(phoneNumber.number, msg.from, msg.body, phoneNumber.country, userEmail).catch(() => {});
-
-            // Notification Client (si activée)
-            if (userChatId) {
-              const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
-              const text = `📩 <b>Nouveau SMS reçu</b>\n` +
-                `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
-                `De : <code>${msg.from}</code>\n` +
-                `Message : <code>${msg.body}</code>\n` +
-                `📅 ${new Date().toLocaleString("fr-FR")}`;
-              
-              fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: userChatId,
-                  text,
-                  parse_mode: "HTML",
-                }),
-              }).catch(err => console.error("[Telegram Client] Erreur:", err.message));
-            }
-          }
-        }
-      }
-      
       // Filtrer les messages : ne montrer que ceux reçus APRÈS le début de la réservation active
       // → les anciens messages d'autres clients ne sont jamais visibles
       const messages = await storage.getMessages(phoneNumberId, activeRes?.startsAt ?? undefined);
@@ -1232,44 +1190,51 @@ export async function registerRoutes(
   app.post("/api/admin/purchase-number", async (req, res) => {
     if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
-      if (!twilioService.isConfigured()) {
-        return res.status(503).json({ error: "Twilio is not configured" });
-      }
-      
       const parseResult = purchaseNumberSchema.safeParse(req.body);
       if (!parseResult.success) {
-        return res.status(400).json({ error: "Invalid country. Use 'france' or 'usa'." });
+        return res.status(400).json({ error: "Invalid country. Use 'france', 'usa', or 'canada'." });
       }
-      
-      const { country } = parseResult.data;
-      
+
+      const { country, provider = "twilio" } = parseResult.data;
+
+      let prov;
+      try {
+        prov = getProvider(provider);
+      } catch {
+        return res.status(503).json({ error: `Fournisseur ${provider} inconnu.` });
+      }
+      if (!prov.isConfigured()) {
+        return res.status(503).json({ error: `Le fournisseur ${provider} n'est pas configuré.` });
+      }
+
       const countryCode = country === "france" ? "FR" : country === "canada" ? "CA" : "US";
-      const available = await twilioService.searchAvailableNumbers(countryCode, 5);
+      const available = await prov.searchAvailableNumbers(countryCode, 5);
       const smsCandidate = available.find(n => n.smsCapable);
 
       if (!smsCandidate) {
         if (country === "france") {
           return res.status(404).json({
-            error: "Aucun numéro Mobile France compatible SMS n'est disponible chez Twilio actuellement. Les numéros Mobile français sont souvent en rupture de stock — réessayez plus tard.",
+            error: `Aucun numéro France compatible SMS n'est disponible chez ${provider} actuellement. Réessayez plus tard.`,
           });
         }
         return res.status(404).json({ error: "Aucun numéro compatible SMS disponible dans cette région" });
       }
-      
+
       let purchased;
       try {
-        purchased = await twilioService.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
+        purchased = await prov.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
       } catch (purchaseErr: any) {
-        return res.status(400).json({ error: purchaseErr?.userMessage || "Échec de l'achat du numéro auprès de Twilio." });
+        return res.status(400).json({ error: purchaseErr?.userMessage || `Échec de l'achat auprès de ${provider}.` });
       }
       if (!purchased) {
         return res.status(500).json({ error: "Le numéro trouvé n'est pas compatible SMS. Aucun numéro SMS disponible dans cette région." });
       }
-      
+
       const phoneNumber = await storage.createPhoneNumber({
         twilioSid: purchased.sid,
         number: purchased.phoneNumber,
         country: country as Country,
+        provider,
         isAvailable: true,
         isValid: true,
       });
@@ -2061,6 +2026,81 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("[Telegram Webhook] Erreur:", err.message);
       res.sendStatus(200);
+    }
+  });
+
+  // ── Webhook SMS entrants Telnyx ─────────────────────────────────────────
+  // Exempté CSRF (webhook externe). Signature Ed25519 vérifiée si TELNYX_PUBLIC_KEY configurée.
+  app.post("/api/telnyx/webhook", async (req, res) => {
+    try {
+      const telnyxPublicKey = process.env.TELNYX_PUBLIC_KEY;
+      if (telnyxPublicKey) {
+        const signature = req.headers["telnyx-signature-ed25519"] as string | undefined;
+        const timestamp = req.headers["telnyx-timestamp"] as string | undefined;
+        if (signature && timestamp) {
+          const message = Buffer.from(`${timestamp}|${JSON.stringify(req.body)}`);
+          const pubKey = crypto.createPublicKey({
+            key: Buffer.from(telnyxPublicKey, "base64"),
+            format: "der",
+            type: "spki",
+          });
+          const valid = crypto.verify(null, message, pubKey, Buffer.from(signature, "base64"));
+          if (!valid) return res.status(401).json({ error: "Invalid signature" });
+        } else {
+          console.warn("[Telnyx] TELNYX_PUBLIC_KEY configurée mais headers de signature absents");
+        }
+      }
+
+      const event = req.body?.data;
+      if (!event || event.event_type !== "message.received") return res.sendStatus(200);
+
+      const payload = event.payload;
+      const toNumber: string | undefined = payload?.to?.[0]?.phone_number;
+      const fromNumber: string | undefined = payload?.from?.phone_number;
+      const text: string | undefined = payload?.text;
+      const msgId: string | undefined = payload?.id;
+      const receivedAt = payload?.received_at ? new Date(payload.received_at) : new Date();
+
+      if (!toNumber || !fromNumber || !text) return res.sendStatus(200);
+
+      const phoneNumber = await storage.getPhoneNumberByNumber(toNumber);
+      if (!phoneNumber) {
+        console.warn(`[Telnyx] SMS reçu pour ${toNumber} — numéro inconnu en base`);
+        return res.sendStatus(200);
+      }
+
+      if (msgId) {
+        const existing = await storage.getMessageByTwilioSid(msgId);
+        if (existing) return res.sendStatus(200);
+      }
+
+      await storage.createMessage({
+        phoneNumberId: phoneNumber.id,
+        twilioMessageSid: msgId ?? null,
+        sender: fromNumber,
+        content: text,
+        receivedAt,
+      });
+      await storage.incrementSmsReceivedCount(phoneNumber.id);
+
+      telegram.notifySmsReceived(phoneNumber.number, fromNumber, text, phoneNumber.country, undefined).catch(() => {});
+
+      const activeRes = await storage.getActiveReservation(phoneNumber.id);
+      if (activeRes?.telegramChatId) {
+        const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
+        const tgText =
+          `📩 <b>Nouveau SMS reçu</b>\n` +
+          `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+          `De : <code>${fromNumber}</code>\n` +
+          `Message : <code>${text}</code>\n` +
+          `📅 ${new Date().toLocaleString("fr-FR")}`;
+        telegram.sendMessage(activeRes.telegramChatId, tgText).catch(() => {});
+      }
+
+      return res.sendStatus(200);
+    } catch (err: any) {
+      console.error("[Telnyx Webhook] Erreur:", err.message);
+      return res.status(500).json({ error: "Internal error" });
     }
   });
 

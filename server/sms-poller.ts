@@ -18,6 +18,7 @@ async function pollOnce(): Promise<void> {
       phoneNumberId: phoneNumbers.id,
       number: phoneNumbers.number,
       country: phoneNumbers.country,
+      provider: phoneNumbers.provider,
       startsAt: reservations.startsAt,
     })
     .from(reservations)
@@ -25,6 +26,8 @@ async function pollOnce(): Promise<void> {
     .where(and(eq(reservations.isActive, true), gt(reservations.expiresAt, new Date())));
 
   for (const r of activeReservations) {
+    // Seuls les numéros Twilio sont pollés — les numéros Telnyx reçoivent leurs SMS via webhook
+    if (r.provider && r.provider !== "twilio") continue;
     try {
       // Pass reservation start date so Twilio only returns messages from that period
       const twilioMessages = await twilioService.getMessagesForNumber(r.number, r.startsAt ?? undefined);

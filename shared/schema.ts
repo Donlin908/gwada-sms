@@ -34,6 +34,7 @@ export const phoneNumbers = pgTable("phone_numbers", {
   twilioSid: text("twilio_sid").notNull().unique(),
   number: text("number").notNull(),
   country: text("country").notNull().$type<Country>(),
+  provider: text("provider").notNull().default("twilio"),
   isAvailable: boolean("is_available").notNull().default(true),
   isValid: boolean("is_valid").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),

@@ -476,3 +476,26 @@ export async function releasePhoneNumber(phoneNumberSid: string): Promise<boolea
     return false;
   }
 }
+
+import type { SmsProvider, ProviderPhoneNumber } from "./sms-provider";
+import { registerProvider } from "./sms-provider";
+
+export const twilioProvider: SmsProvider = {
+  isConfigured,
+  async listNumbers(): Promise<ProviderPhoneNumber[]> {
+    const all = await getAllTwilioNumbers();
+    return all.map(n => ({
+      sid: n.sid,
+      phoneNumber: n.phoneNumber,
+      smsCapable: n.capabilities.sms,
+    }));
+  },
+  searchAvailableNumbers,
+  purchasePhoneNumber,
+  releasePhoneNumber,
+  async checkNumberActive(providerId: string): Promise<boolean> {
+    return checkNumberActiveInTwilio(providerId);
+  },
+};
+
+registerProvider("twilio", twilioProvider);

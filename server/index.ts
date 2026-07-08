@@ -232,7 +232,7 @@ async function main() {
   // renvoie dans l'en-tête X-CSRF-Token sur chaque requête de mutation.
   // Les webhooks externes (Stripe, Telegram) n'utilisent pas de cookie de
   // session et sont donc exemptés — ils sont déjà vérifiés par signature.
-  const CSRF_EXEMPT_PATHS = new Set(["/api/stripe/webhook", "/api/telegram/webhook"]);
+  const CSRF_EXEMPT_PATHS = new Set(["/api/stripe/webhook", "/api/telegram/webhook", "/api/telnyx/webhook"]);
   const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
   function getCookieValue(req: Request, name: string): string | undefined {

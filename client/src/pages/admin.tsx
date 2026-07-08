@@ -645,9 +645,11 @@ export default function AdminPage() {
     },
   });
   
+  const [purchaseProvider, setPurchaseProvider] = useState<"twilio" | "telnyx">("twilio");
+
   const purchaseNumberMutation = useMutation({
-    mutationFn: async (country: string) => {
-      const res = await apiRequest("POST", "/api/admin/purchase-number", { country });
+    mutationFn: async ({ country, provider }: { country: string; provider: string }) => {
+      const res = await apiRequest("POST", "/api/admin/purchase-number", { country, provider });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -967,21 +969,39 @@ export default function AdminPage() {
             
             <div className="pt-4 space-y-2">
               <Label>Achat manuel de numéros</Label>
+              <div className="flex gap-2 mb-2">
+                <Button
+                  variant={purchaseProvider === "twilio" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPurchaseProvider("twilio")}
+                  data-testid="button-provider-twilio"
+                >
+                  Twilio
+                </Button>
+                <Button
+                  variant={purchaseProvider === "telnyx" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPurchaseProvider("telnyx")}
+                  data-testid="button-provider-telnyx"
+                >
+                  Telnyx
+                </Button>
+              </div>
               <div className="flex gap-2">
-                <Button 
+                <Button
                   variant="outline"
-                  onClick={() => purchaseNumberMutation.mutate("france")}
-                  disabled={purchaseNumberMutation.isPending || !stats?.services.twilioConfigured}
+                  onClick={() => purchaseNumberMutation.mutate({ country: "france", provider: purchaseProvider })}
+                  disabled={purchaseNumberMutation.isPending}
                   className="flex-1"
                   data-testid="button-purchase-france"
                 >
                   <ShoppingCart className="mr-2 h-4 w-4" />
                   France
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
-                  onClick={() => purchaseNumberMutation.mutate("usa")}
-                  disabled={purchaseNumberMutation.isPending || !stats?.services.twilioConfigured}
+                  onClick={() => purchaseNumberMutation.mutate({ country: "usa", provider: purchaseProvider })}
+                  disabled={purchaseNumberMutation.isPending}
                   className="flex-1"
                   data-testid="button-purchase-usa"
                 >
@@ -989,11 +1009,6 @@ export default function AdminPage() {
                   USA
                 </Button>
               </div>
-              {!stats?.services.twilioConfigured && (
-                <p className="text-xs text-muted-foreground">
-                  Configurez Twilio pour acheter des numéros
-                </p>
-              )}
             </div>
             
             {telegramStatus && (
@@ -1129,9 +1144,16 @@ export default function AdminPage() {
                     >
                       <td className="px-4 py-3 font-mono font-medium">{num.number}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className="text-xs">
-                          {num.country === "france" ? "🇫🇷 France" : num.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {num.country === "france" ? "🇫🇷 France" : num.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
+                          </Badge>
+                          {num.provider && num.provider !== "twilio" && (
+                            <Badge variant="secondary" className="text-xs capitalize">
+                              {num.provider}
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {num.twilioActive ? (

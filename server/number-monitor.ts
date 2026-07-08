@@ -1,6 +1,8 @@
 import { storage } from "./storage";
 import { sendUsageAlert, sendNewNumberNotification, isEmailConfigured } from "./email-service";
 import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber, checkFranceBundleApproved } from "./twilio-service";
+import { listTelnyxNumbers } from "./telnyx-service";
+import { getProvider, isProviderConfigured } from "./sms-provider";
 import * as telegram from "./telegram-service";
 import type { Country } from "@shared/schema";
 
@@ -293,7 +295,8 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
       // Only invalidate numbers with real Twilio SIDs (starting with "PN")
       // Demo/test numbers have fake SIDs that don't start with "PN"
       const hasRealTwilioSid = dbNum.twilioSid && dbNum.twilioSid.startsWith("PN");
-      if (hasRealTwilioSid && !twilioSids.has(dbNum.twilioSid)) {
+      const isTwilioNumber = !dbNum.provider || dbNum.provider === "twilio";
+      if (isTwilioNumber && hasRealTwilioSid && !twilioSids.has(dbNum.twilioSid)) {
         await storage.updatePhoneNumber(dbNum.id, { 
           isValid: false, 
           isAvailable: false 
@@ -313,6 +316,68 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
   return { synced, invalidated };
 }
 
+export async function syncTelnyxNumbers(): Promise<{ synced: number; invalidated: number }> {
+  if (!isProviderConfigured("telnyx")) {
+    return { synced: 0, invalidated: 0 };
+  }
+
+  let synced = 0;
+  let invalidated = 0;
+
+  const CANADA_AREA_CODES = new Set([
+    "204","226","236","249","250","289","306","343","365","387",
+    "403","416","418","431","437","438","450","506","514","519",
+    "548","579","581","587","604","613","639","647","705","709",
+    "742","778","780","782","807","819","825","867","873","902","905",
+  ]);
+
+  try {
+    const telnyxNumbers = await listTelnyxNumbers();
+    const telnyxIds = new Set(telnyxNumbers.map(n => n.sid));
+
+    for (const tn of telnyxNumbers) {
+      const existing = await storage.getPhoneNumberByTwilioSid(tn.sid);
+      if (!existing) {
+        let country: Country = "usa";
+        if (tn.phoneNumber.startsWith("+33")) {
+          country = "france";
+        } else if (tn.phoneNumber.startsWith("+1") && tn.phoneNumber.length >= 5) {
+          const areaCode = tn.phoneNumber.substring(2, 5);
+          if (CANADA_AREA_CODES.has(areaCode)) country = "canada";
+        }
+        await storage.createPhoneNumber({
+          twilioSid: tn.sid,
+          number: tn.phoneNumber,
+          country,
+          provider: "telnyx",
+          isAvailable: true,
+          isValid: tn.smsCapable,
+          lastValidatedAt: new Date(),
+        });
+        synced++;
+        console.log(`[Telnyx Sync] Numéro importé : ${tn.phoneNumber}`);
+      }
+    }
+
+    const dbNumbers = await storage.getAllPhoneNumbers();
+    for (const dbNum of dbNumbers) {
+      if (dbNum.provider !== "telnyx") continue;
+      if (!telnyxIds.has(dbNum.twilioSid)) {
+        await storage.updatePhoneNumber(dbNum.id, { isValid: false, isAvailable: false });
+        invalidated++;
+        console.log(`[Telnyx Sync] ${dbNum.number} introuvable sur Telnyx — marqué invalide`);
+        await telegram.notifyNumberInvalidated(dbNum.number, dbNum.country);
+      }
+    }
+
+    await storage.setSetting("last_telnyx_sync", new Date().toISOString());
+  } catch (error) {
+    console.error("[Telnyx Sync] Erreur:", error);
+  }
+
+  return { synced, invalidated };
+}
+
 export async function validateExistingNumbers(): Promise<number> {
   if (!isTwilioConfigured()) {
     return 0;
@@ -323,18 +388,22 @@ export async function validateExistingNumbers(): Promise<number> {
   
   for (const num of allNumbers) {
     if (num.twilioSid && num.isValid) {
-      const isStillValid = await validatePhoneNumber(num.twilioSid);
+      let isStillValid = true;
+      try {
+        const prov = getProvider(num.provider || "twilio");
+        isStillValid = await prov.checkNumberActive(num.twilioSid);
+      } catch {
+        continue;
+      }
       if (!isStillValid) {
-        await storage.updatePhoneNumber(num.id, { 
-          isValid: false, 
-          isAvailable: false 
+        await storage.updatePhoneNumber(num.id, {
+          isValid: false,
+          isAvailable: false,
         });
         invalidated++;
-        console.log(`Number ${num.number} is no longer valid on Twilio`);
+        console.log(`Number ${num.number} is no longer valid on ${num.provider || "twilio"}`);
       } else {
-        await storage.updatePhoneNumber(num.id, { 
-          lastValidatedAt: new Date() 
-        });
+        await storage.updatePhoneNumber(num.id, { lastValidatedAt: new Date() });
       }
     }
   }
@@ -442,7 +511,11 @@ export async function runMonitoringCycle(): Promise<MonitoringStats> {
   // Expire old reservations first — frees up numbers before any other check
   await storage.expireOldReservations();
 
-  const syncResult = await syncTwilioNumbers();
+  const [twilioSync, telnyxSync] = await Promise.all([syncTwilioNumbers(), syncTelnyxNumbers()]);
+  const syncResult = {
+    synced: twilioSync.synced + telnyxSync.synced,
+    invalidated: twilioSync.invalidated + telnyxSync.invalidated,
+  };
   const alertsSent = await checkAndAlertHighUsage();
   const purchased = await checkAndAutoPurchase();
   await checkQualityAndRetireNumbers();
