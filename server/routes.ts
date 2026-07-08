@@ -111,6 +111,7 @@ export async function registerRoutes(
   app.use("/api/auth/resend-verification", authLimiter);
   app.use("/api/admin/login", adminLoginLimiter);
   app.use("/api/stripe/create-checkout-session", paymentLimiter);
+  app.use("/api/reviews", authLimiter);
   // ─────────────────────────────────────────────────────────────────────────
 
   app.post("/api/auth/register", async (req, res) => {
@@ -749,6 +750,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/sync-twilio-numbers", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
       if (!twilioService.isConfigured()) {
         return res.status(503).json({ error: "Twilio is not configured" });
@@ -1047,7 +1049,11 @@ export async function registerRoutes(
         return res.status(503).json({ error: "Mot de passe admin non configuré" });
       }
       
-      if (password === adminPassword) {
+      const passBuffer = Buffer.from(password);
+      const adminBuffer = Buffer.from(adminPassword);
+      const isValid = passBuffer.length === adminBuffer.length &&
+        crypto.timingSafeEqual(passBuffer, adminBuffer);
+      if (isValid) {
         req.session.adminAuth = true;
         res.json({ success: true, message: "Connexion réussie" });
       } else {

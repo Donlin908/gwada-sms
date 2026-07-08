@@ -301,7 +301,10 @@ async function main() {
       const duration = Date.now() - start;
       if (path.startsWith("/api")) {
         let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-        if (capturedJsonResponse) {
+        // Ne pas logger le corps des réponses sensibles (SMS/OTP, emails, profils)
+        const SENSITIVE_PREFIXES = ["/api/messages", "/api/admin/users", "/api/auth/me", "/api/user/reservations"];
+        const isSensitive = SENSITIVE_PREFIXES.some(p => path.startsWith(p));
+        if (capturedJsonResponse && !isSensitive) {
           logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
         }
 
