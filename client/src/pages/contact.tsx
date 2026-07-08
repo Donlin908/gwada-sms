@@ -94,6 +94,10 @@ export default function Contact() {
       a: "En raison de la nature numérique et immédiate du service, les remboursements ne sont possibles qu'en cas de problème technique avéré empêchant l'accès au service.",
     },
     {
+      q: "Le service est-il disponible depuis la Guadeloupe et la Martinique ?",
+      a: "Oui, le service fonctionne depuis tous les DOM-TOM (Guadeloupe, Martinique, Réunion, Guyane, Mayotte…). Vous pouvez acheter un numéro France, États-Unis ou Canada et recevoir vos SMS de vérification normalement, quelle que soit votre localisation.",
+    },
+    {
       q: "Les SMS sont-ils chiffrés ?",
       a: "Les SMS reçus sont visibles uniquement par vous dans votre tableau de bord. Ils sont supprimés automatiquement à l'expiration de votre réservation.",
     },

@@ -24,7 +24,7 @@ export function HeroSection() {
           <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl" data-testid="text-hero-description">
             Numéros américains et canadiens disponibles pour recevoir vos codes de vérification.
             <br />
-            <span className="font-medium">Service accessible depuis la Guadeloupe et les DOM.</span>
+            <span className="font-medium">Service accessible depuis la Guadeloupe, la Martinique et tous les DOM-TOM.</span>
             <br />
             Réception uniquement — aucun envoi possible.
           </p>
