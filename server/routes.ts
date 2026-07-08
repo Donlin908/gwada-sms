@@ -1222,7 +1222,7 @@ export async function registerRoutes(
 
       let purchased;
       try {
-        purchased = await prov.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable);
+        purchased = await prov.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable, smsCandidate.providerData);
       } catch (purchaseErr: any) {
         return res.status(400).json({ error: purchaseErr?.userMessage || `Échec de l'achat auprès de ${provider}.` });
       }

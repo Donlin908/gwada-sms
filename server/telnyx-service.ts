@@ -73,10 +73,14 @@ async function searchAvailableNumbers(
           smsCapable: features.includes("sms"),
           mmsCapable: features.includes("mms"),
           voiceCapable: features.includes("voice"),
-          addressRequired: false,
+          addressRequired: (n.regulatory_requirements ?? []).length > 0,
           monthlyFee: n.cost_information?.monthly_cost
             ? parseFloat(n.cost_information.monthly_cost)
             : undefined,
+          // Carry Telnyx regulatory_requirements so purchasePhoneNumber can use them
+          providerData: {
+            regulatory_requirements: n.regulatory_requirements ?? [],
+          },
         };
       });
     console.log(`[Telnyx] ${countryCode} — ${results.length} numéro(s) disponible(s)`);
@@ -90,17 +94,38 @@ async function searchAvailableNumbers(
 async function purchasePhoneNumber(
   phoneNumber: string,
   friendlyName?: string,
-  smsCapable?: boolean
+  smsCapable?: boolean,
+  providerData?: Record<string, unknown>
 ): Promise<PurchasedNumber | null> {
   if (!apiKey) return null;
   if (smsCapable === false) {
     console.warn(`[Telnyx] Achat annulé — ${phoneNumber} n'est pas compatible SMS.`);
     return null;
   }
+
+  const bundleId = process.env.TELNYX_FRANCE_BUNDLE_ID;
+  const isFrance = phoneNumber.startsWith("+33");
+  const rawReqs = (providerData?.regulatory_requirements as Array<{ requirement_id: string; field_value: string | null }> | undefined) ?? [];
+
+  if (isFrance && rawReqs.length > 0 && !bundleId) {
+    const err: any = new Error("Bundle réglementaire Telnyx France requis mais TELNYX_FRANCE_BUNDLE_ID non configuré.");
+    err.userMessage = "Pour acheter un numéro France via Telnyx, configurez le secret TELNYX_FRANCE_BUNDLE_ID dans Replit (ID du bundle de conformité créé sur portal.telnyx.com).";
+    throw err;
+  }
+
   try {
     const body: any = { phone_number: phoneNumber };
     const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID;
     if (messagingProfileId) body.messaging_profile_id = messagingProfileId;
+
+    // Injecter le bundle réglementaire pour les numéros France
+    if (isFrance && bundleId && rawReqs.length > 0) {
+      body.regulatory_requirements = rawReqs.map((req) => ({
+        requirement_id: req.requirement_id,
+        field_value: bundleId,
+      }));
+      console.log(`[Telnyx] Achat France avec bundle ${bundleId} (${rawReqs.length} exigence(s))`);
+    }
 
     const data = await apiFetch("/phone_numbers", {
       method: "POST",
@@ -116,7 +141,7 @@ async function purchasePhoneNumber(
     };
   } catch (err: any) {
     const purchaseError: any = new Error(err.message);
-    purchaseError.userMessage = `Échec de l'achat auprès de Telnyx : ${err.message}`;
+    purchaseError.userMessage = err.userMessage ?? `Échec de l'achat auprès de Telnyx : ${err.message}`;
     throw purchaseError;
   }
 }

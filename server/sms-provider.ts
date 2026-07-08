@@ -9,6 +9,8 @@ export interface AvailableNumberToPurchase {
   voiceCapable: boolean;
   addressRequired: boolean;
   monthlyFee?: number;
+  /** Provider-specific metadata (e.g. regulatory_requirements for Telnyx France) */
+  providerData?: Record<string, unknown>;
 }
 
 export interface PurchasedNumber {
@@ -27,7 +29,7 @@ export interface SmsProvider {
   isConfigured(): boolean;
   listNumbers(): Promise<ProviderPhoneNumber[]>;
   searchAvailableNumbers(countryCode: string, limit?: number): Promise<AvailableNumberToPurchase[]>;
-  purchasePhoneNumber(phoneNumber: string, friendlyName?: string, smsCapable?: boolean): Promise<PurchasedNumber | null>;
+  purchasePhoneNumber(phoneNumber: string, friendlyName?: string, smsCapable?: boolean, providerData?: Record<string, unknown>): Promise<PurchasedNumber | null>;
   releasePhoneNumber(providerId: string): Promise<boolean>;
   checkNumberActive(providerId: string): Promise<boolean>;
 }
