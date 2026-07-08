@@ -1658,6 +1658,18 @@ export async function registerRoutes(
 
   // Webhook Telegram — reçoit les mises à jour du bot
   app.post("/api/telegram/webhook", async (req, res) => {
+    // Vérification d'authenticité : Telegram envoie le secret_token (enregistré
+    // via setWebhook) dans le header X-Telegram-Bot-Api-Secret-Token.
+    // Sans cette vérification, n'importe qui connaissant le chat_id admin
+    // pourrait déclencher des achats Twilio ou passer le site en maintenance.
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (botToken) {
+      const expectedSecret = crypto.createHmac("sha256", botToken).update("gwada-telegram-webhook").digest("hex").slice(0, 64);
+      const receivedSecret = req.headers["x-telegram-bot-api-secret-token"];
+      if (receivedSecret !== expectedSecret) {
+        return res.sendStatus(403);
+      }
+    }
     try {
       const update = req.body;
 

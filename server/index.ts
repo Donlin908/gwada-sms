@@ -124,6 +124,10 @@ async function initStripe() {
   }
 }
 
+export function getTelegramWebhookSecret(token: string): string {
+  return crypto.createHmac("sha256", token).update("gwada-telegram-webhook").digest("hex").slice(0, 64);
+}
+
 async function setupTelegramWebhook() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
@@ -133,10 +137,11 @@ async function setupTelegramWebhook() {
   const baseUrl = (process.env.PUBLIC_URL || "https://gwadasms.com").replace(/\/+$/, "");
   try {
     const webhookUrl = `${baseUrl}/api/telegram/webhook`;
+    const secretToken = getTelegramWebhookSecret(token);
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: webhookUrl }),
+      body: JSON.stringify({ url: webhookUrl, secret_token: secretToken }),
     });
     const data = await res.json() as any;
     if (data.ok) {
