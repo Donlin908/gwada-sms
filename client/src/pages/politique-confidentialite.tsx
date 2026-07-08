@@ -98,7 +98,7 @@ export default function PolitiqueConfidentialite() {
                 link: "https://stripe.com/fr/privacy",
               },
               {
-                name: "Twilio",
+                name: "Twilio et prestataires télécom partenaires",
                 role: "Gestion des numéros de téléphone et réception des SMS",
                 data: "Numéros de téléphone, contenu des SMS reçus",
                 location: "USA (clauses contractuelles types)",

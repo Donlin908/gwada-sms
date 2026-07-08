@@ -1,0 +1,29 @@
+J'ai lu les trois fichiers. Voici les réponses à tes deux questions.
+
+1. La clause d'usage interdit — oui, elle est déjà là (mais deux détails à corriger)
+Ta CGU article 4 contient bien la clause de protection, et elle est correctement rédigée :
+
+« réception de SMS de vérification pour un usage personnel et légal »
+interdiction explicite de : activité frauduleuse, contourner des systèmes de sécurité de manière malveillante, créer de faux comptes sur des plateformes tierces à des fins d'arnaque, spam.
+C'est exactement la clause qui te couvre juridiquement. Rien à ajouter sur le fond.
+
+Deux corrections nécessaires si tu ajoutes un fournisseur — le nom « Twilio » est codé en dur à trois endroits, ce qui deviendra faux dès que tu passes sur Vonage/Telnyx :
+
+cgu.tsx:74 : « du prestataire Twilio »
+mentions-legales.tsx:34 : « fournis via le prestataire Twilio Inc. »
+Remplace par une formule générique du type « via nos prestataires de télécommunications partenaires ». Ça évite de rééditer les mentions légales à chaque changement et ça reste exact.
+
+2. Quel fournisseur ajouter — et quelle part du code est réutilisable
+D'abord la vérité sur ton architecture actuelle, parce qu'elle change la réponse. Ton twilio-service.ts fait deux choses très différentes :
+
+Fonction	Réutilisable ailleurs ?
+Cycle de vie du numéro (searchAvailableNumbers, purchasePhoneNumber, releasePhoneNumber, checkNumberActiveInTwilio)	Oui, mappe bien sur les autres API
+Réception des SMS (getMessagesForNumber → client.messages.list({ to, dateSentAfter }))	Non — c'est spécifique à Twilio
+Le point clé : Twilio est inhabituellement généreux — il stocke l'historique des SMS reçus et te laisse le requêter par numéro destinataire. C'est ce que ton poller (sms-poller.ts) et /api/messages exploitent. Aucun des trois autres fournisseurs ne propose ça : Vonage, Telnyx et Bandwidth livrent le SMS entrant en push par webhook, pas en pull par API. Donc quel que soit le fournisseur choisi, la partie réception devra passer d'un modèle « polling » à un modèle « webhook qui écrit dans la table sms_messages ».
+
+Mon classement pour ton cas précis
+1. Telnyx — le plus simple à intégrer. Son API de recherche/achat/libération de numéros est quasi une copie de Twilio, il a un SDK Node officiel (telnyx), et c'est moins cher. Tes fonctions searchAvailableNumbers / purchasePhoneNumber / releasePhoneNumber se réécrivent presque à l'identique. Reste à ajouter un webhook entrant pour la réception.
+
+2. Vonage — SDK Node correct (@vonage/server-sdk), recherche/achat OK, mais réception webhook-only également, et l'API de gestion des numéros est un peu moins « Twilio-like » que Telnyx.
+
+3. Bandwidth — à éviter pour démarrer : onboarding lourd (validation de compte), orienté USA, peu adapté à tes numéros France.

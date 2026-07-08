@@ -1,0 +1,19 @@
+Ce que « réception seule » protège vraiment
+Ne pas pouvoir envoyer de SMS t'évite le risque spam/A2P : pas d'envoi en masse, pas de smishing, pas de campagnes non sollicitées. C'est réel et c'est bien — ça t'enlève toute une catégorie de problèmes réglementaires (10DLC aux USA, obligations d'émetteur, etc.). Donc ce n'est pas inutile.
+
+Ce que ça ne protège pas — le vrai risque
+Le problème de conformité de ce modèle n'est pas dans l'envoi, il est dans l'usage des codes reçus. L'AUP de Twilio et les CGU des plateformes tierces visent le fait de recevoir des OTP sur un numéro que le titulaire du compte final ne contrôle pas — c'est-à-dire contourner la vérification d'identité de WhatsApp, Google, Telegram, une banque, etc. Recevoir, c'est précisément l'action à risque ici, pas envoyer.
+
+Concrètement, ce qui déclenche une coupure Twilio ou une plainte, c'est :
+
+La mutualisation d'un même numéro entre plusieurs clients successifs. Ton système est bâti là-dessus (usageCount, max_usages_daily/weekly/monthly, réattribution après expiration). Un numéro utilisé par 6 personnes différentes pour recevoir des OTP est exactement le signal que les fournisseurs et les plateformes détectent et sanctionnent — indépendamment de l'envoi.
+Les plaintes des plateformes tierces. Si des codes WhatsApp/Google arrivent en masse sur tes numéros Twilio, c'est Twilio qui reçoit le signalement et qui ferme le compte — sans préavis. La réception seule n'y change rien.
+Twilio le voit dans les métadonnées entrantes (volume, expéditeurs de type « verification services », rotation des destinataires). Le fait que tu n'aies techniquement pas activé l'envoi ne masque pas ce trafic entrant.
+Ce que ça signifie pour la valeur
+Donc, honnêtement : « réception seule » est un bon point de conformité partielle à mettre en avant (tu peux le dire à un acheteur, ça montre que tu as réfléchi au sujet), mais ça ne supprime pas la décote « mono-fournisseur en zone grise ». Le risque « compte Twilio coupé du jour au lendemain » reste le principal, parce qu'il vient du trafic entrant et de la mutualisation, pas de l'émission.
+
+Ce qui atténuerait vraiment le risque
+Un plan B fournisseur (Vonage, Telnyx, Bandwidth, Bird…) prêt à basculer, pour qu'une coupure Twilio ne tue pas le service. C'est ce qui rassure le plus un acheteur.
+Une position claire sur les usages autorisés dans tes CGU (que j'ai vues en page — /cgu) : interdire explicitement l'usage pour créer des comptes en fraude d'identité te couvre juridiquement, même si en pratique tu ne peux pas tout contrôler.
+Surveiller le ratio de numéros signalés — tu as déjà isProblematic et le système de compensation, ce qui montre que tu gères la casse. C'est bien vu.
+En résumé : garde l'argument « réception seule », il est valable, mais ne le présente pas comme la solution au risque fournisseur — ce serait faux, et un acheteur ou un auditeur technique le verrait tout de suite. Le vrai levier de dérisquage, c'est la redondance fournisseur.

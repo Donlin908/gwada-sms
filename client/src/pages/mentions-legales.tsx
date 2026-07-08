@@ -31,7 +31,7 @@ export default function MentionsLegales() {
           <h2 className="text-xl font-semibold mb-3">Activité</h2>
           <p className="text-muted-foreground leading-relaxed">
             GWADA SMS est un service de numéros de téléphone virtuels permettant la réception de SMS de vérification.
-            Les numéros mis à disposition sont fournis via le prestataire Twilio Inc. Le service est destiné
+            Les numéros mis à disposition sont fournis via nos prestataires de télécommunications partenaires. Le service est destiné
             à un usage personnel et légal uniquement.
           </p>
         </section>
