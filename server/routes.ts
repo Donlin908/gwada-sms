@@ -1038,6 +1038,7 @@ export async function registerRoutes(
       const stats = await numberMonitor.getMonitoringStats();
       const emailConfigured = isEmailConfigured();
       const twilioConfigured = twilioService.isConfigured();
+      const telnyxConfigured = isProviderConfigured("telnyx");
       
       const usageThreshold = await storage.getSetting("usage_alert_threshold") || "8";
       const autoPurchaseEnabled = await storage.getSetting("auto_purchase_enabled") || "false";
@@ -1067,6 +1068,7 @@ export async function registerRoutes(
         services: {
           emailConfigured,
           twilioConfigured,
+          telnyxConfigured,
         },
       });
     } catch (error) {
@@ -1270,6 +1272,24 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error syncing Twilio numbers:", error);
       res.status(500).json({ error: "Failed to sync numbers" });
+    }
+  });
+
+  app.post("/api/admin/sync-telnyx", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    try {
+      if (!isProviderConfigured("telnyx")) {
+        return res.status(503).json({ error: "Telnyx is not configured" });
+      }
+      const result = await numberMonitor.syncTelnyxNumbers();
+      res.json({
+        message: "Telnyx sync completed",
+        synced: result.synced,
+        invalidated: result.invalidated,
+      });
+    } catch (error) {
+      console.error("Error syncing Telnyx numbers:", error);
+      res.status(500).json({ error: "Failed to sync Telnyx numbers" });
     }
   });
 

@@ -668,13 +668,27 @@ export default function AdminPage() {
     mutationFn: async () => {
       return apiRequest("POST", "/api/admin/sync-twilio");
     },
-    onSuccess: (response) => {
-      toast({ title: "Synchronisation terminée" });
+    onSuccess: () => {
+      toast({ title: "Synchronisation Twilio terminée" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
     },
     onError: () => {
-      toast({ title: "Erreur lors de la synchronisation", variant: "destructive" });
+      toast({ title: "Erreur lors de la synchronisation Twilio", variant: "destructive" });
+    },
+  });
+
+  const syncTelnyxMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/sync-telnyx");
+    },
+    onSuccess: () => {
+      toast({ title: "Synchronisation Telnyx terminée" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/numbers"] });
+    },
+    onError: () => {
+      toast({ title: "Erreur lors de la synchronisation Telnyx", variant: "destructive" });
     },
   });
 
@@ -1083,6 +1097,30 @@ export default function AdminPage() {
                   Dernière sync : {new Date(stats.lastSyncAt).toLocaleString('fr-FR')}
                 </p>
               )}
+            </div>
+
+            <div className="pt-4 space-y-2 border-t">
+              <div className="flex items-center gap-2">
+                <Label>Synchronisation Telnyx</Label>
+                {stats?.services.telnyxConfigured ? (
+                  <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">Configuré ✓</span>
+                ) : (
+                  <span className="text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full">Non configuré</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Importer les numéros achetés sur Telnyx dans la base de données
+              </p>
+              <Button 
+                variant="outline"
+                onClick={() => syncTelnyxMutation.mutate()}
+                disabled={syncTelnyxMutation.isPending || !stats?.services.telnyxConfigured}
+                className="w-full"
+                data-testid="button-sync-telnyx"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncTelnyxMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncTelnyxMutation.isPending ? 'Synchronisation...' : 'Synchroniser Telnyx'}
+              </Button>
             </div>
           </CardContent>
         </Card>
