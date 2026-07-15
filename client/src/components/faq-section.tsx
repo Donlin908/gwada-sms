@@ -9,6 +9,10 @@ import { HelpCircle } from "lucide-react";
 
 const faqItems = [
   {
+    question: "Le service est-il accessible depuis les DOM-TOM (Guadeloupe, Martinique, Réunion…) ?",
+    answer: "Oui, GWADA SMS est pleinement accessible depuis tous les territoires d'outre-mer français : Guadeloupe, Martinique, Réunion, Guyane, Mayotte, Saint-Martin, Saint-Barthélemy et les autres COM/DOM. Le service fonctionne depuis n'importe quelle connexion internet, et les cartes bancaires émises dans les DOM (cartes françaises) sont acceptées via Stripe. La réception des SMS sur les numéros virtuels ne dépend pas de votre localisation."
+  },
+  {
     question: "Pourquoi je ne peux pas envoyer de SMS ?",
     answer: "Le service est conçu uniquement pour recevoir des codes de vérification. Cela garantit la stabilité du service et évite les abus."
   },
