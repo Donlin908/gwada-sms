@@ -71,7 +71,7 @@ export default function CGU() {
           <p className="text-muted-foreground leading-relaxed">
             GWADA SMS s'efforce d'assurer la disponibilité du service 24h/24 et 7j/7. Toutefois, des
             interruptions peuvent survenir pour maintenance ou en cas de force majeure. La réception
-            des SMS dépend également de la disponibilité des réseaux téléphoniques et de nos prestataires de télécommunications partenaires.
+            des SMS dépend également de la disponibilité des réseaux téléphoniques et de nos prestataires de télécommunications partenaires (opérateurs tiers).
             GWADA SMS ne peut garantir la réception de tous les SMS envoyés par des tiers.
           </p>
         </section>
