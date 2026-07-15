@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { type Country, pricingPlans, phoneNumbers, reservations, users, smsMessages, insertReviewSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as twilioService from "./twilio-service";
-import { getProvider } from "./sms-provider";
+import { getProvider, isProviderConfigured } from "./sms-provider";
 import "./telnyx-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";

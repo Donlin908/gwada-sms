@@ -67,6 +67,7 @@ interface AdminStats {
   services: {
     emailConfigured: boolean;
     twilioConfigured: boolean;
+    telnyxConfigured: boolean;
   };
 }
 
@@ -85,6 +86,7 @@ interface AdminNumber {
   id: string;
   number: string;
   country: string;
+  provider: string;
   usageCount: number;
   isAvailable: boolean;
   isValid: boolean;
