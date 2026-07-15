@@ -1136,7 +1136,7 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Tous les numéros</CardTitle>
           <CardDescription>
-            Disponibilité par plan et statut Twilio en temps réel
+            Disponibilité par plan et provider en temps réel
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -1153,7 +1153,7 @@ export default function AdminPage() {
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-3 text-left font-medium">Numéro</th>
                     <th className="px-4 py-3 text-left font-medium">Pays</th>
-                    <th className="px-4 py-3 text-center font-medium">Twilio</th>
+                    <th className="px-4 py-3 text-center font-medium">Provider</th>
                     <th className="px-4 py-3 text-center font-medium">Statut</th>
                     <th className="px-4 py-3 text-center font-medium">
                       <span className="text-blue-600 dark:text-blue-400">24h</span>
@@ -1182,29 +1182,34 @@ export default function AdminPage() {
                     >
                       <td className="px-4 py-3 font-mono font-medium">{num.number}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            {num.country === "france" ? "🇫🇷 France" : num.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
-                          </Badge>
-                          {num.provider && num.provider !== "twilio" && (
-                            <Badge variant="secondary" className="text-xs capitalize">
-                              {num.provider}
-                            </Badge>
-                          )}
-                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {num.country === "france" ? "🇫🇷 France" : num.country === "canada" ? "🇨🇦 Canada" : "🇺🇸 USA"}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {num.twilioActive ? (
-                          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
-                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse inline-block" />
-                            Actif
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
-                            <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
-                            Inactif
-                          </span>
-                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs capitalize ${
+                              (num.provider ?? "twilio") === "telnyx"
+                                ? "border-violet-500/50 text-violet-600 dark:text-violet-400 bg-violet-500/10"
+                                : "border-blue-500/50 text-blue-600 dark:text-blue-400 bg-blue-500/10"
+                            }`}
+                          >
+                            {num.provider ?? "twilio"}
+                          </Badge>
+                          {num.twilioActive ? (
+                            <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
+                              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse inline-block" />
+                              Actif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
+                              <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+                              Inactif
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {!num.isValid ? (
@@ -1727,6 +1732,7 @@ function AdminReservationSms({ phoneNumberId }: { phoneNumberId: string }) {
 function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
   const { toast } = useToast();
   const [selectedCountry, setSelectedCountry] = useState<"france" | "usa" | "canada">("france");
+  const [selectedProvider, setSelectedProvider] = useState<"all" | "twilio" | "telnyx">("all");
   const [selectedNumberId, setSelectedNumberId] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<"daily" | "weekly" | "monthly">("monthly");
   const [expandedSmsId, setExpandedSmsId] = useState<string | null>(null);
@@ -1737,7 +1743,8 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
   });
 
   const availableNumbers = numbers.filter(
-    n => n.isAvailable && n.isValid && n.country === selectedCountry
+    n => n.isAvailable && n.isValid && n.country === selectedCountry &&
+    (selectedProvider === "all" || (n.provider ?? "twilio") === selectedProvider)
   );
 
   const reserveMutation = useMutation({
@@ -1922,6 +1929,38 @@ function AdminMyAccessCard({ numbers }: { numbers: AdminNumber[] }) {
             >
               🇨🇦 Canada
             </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Provider</Label>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={selectedProvider === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setSelectedProvider("all"); setSelectedNumberId(""); }}
+                data-testid="button-provider-all"
+              >
+                Tous
+              </Button>
+              <Button
+                variant={selectedProvider === "twilio" ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setSelectedProvider("twilio"); setSelectedNumberId(""); }}
+                data-testid="button-provider-filter-twilio"
+                className={selectedProvider === "twilio" ? "" : "border-blue-500/50 text-blue-600 dark:text-blue-400"}
+              >
+                Twilio
+              </Button>
+              <Button
+                variant={selectedProvider === "telnyx" ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setSelectedProvider("telnyx"); setSelectedNumberId(""); }}
+                data-testid="button-provider-filter-telnyx"
+                className={selectedProvider === "telnyx" ? "" : "border-violet-500/50 text-violet-600 dark:text-violet-400"}
+              >
+                Telnyx
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
