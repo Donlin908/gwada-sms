@@ -8,6 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "vitest run",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/memoizee": "^0.4.12",
     "@types/nodemailer": "^7.0.5",
+    "@vitest/coverage-v8": "^4.1.10",
     "axios": "^1.15.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
@@ -92,6 +94,7 @@
     "tw-animate-css": "^1.2.5",
     "twilio": "^5.11.2",
     "vaul": "^1.1.2",
+    "vitest": "^4.1.10",
     "wouter": "^3.3.5",
     "ws": "^8.19.0",
     "xlsx": "^0.18.5",
