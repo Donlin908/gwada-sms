@@ -71,15 +71,16 @@ function mapTelnyxNumber(n: any, countryCode: string): AvailableNumberToPurchase
 
 async function fetchTelnyxNumbers(
   countryCode: string,
-  extraParams: Record<string, string>,
-  fetchLimit: number
+  fetchLimit: number,
+  numberType?: string
 ): Promise<any[]> {
   const params = new URLSearchParams({
     "filter[country_code]": countryCode,
-    "filter[features][]": "sms",
     "filter[limit]": String(fetchLimit),
-    ...extraParams,
   });
+  // Telnyx requires repeated params for multiple feature values — use append()
+  params.append("filter[features][]", "sms");
+  if (numberType) params.append("filter[number_type]", numberType);
   const data = await apiFetch(`/available_phone_numbers?${params}`);
   return data?.data ?? [];
 }
@@ -90,7 +91,7 @@ async function searchAvailableNumbers(
 ): Promise<AvailableNumberToPurchase[]> {
   if (!apiKey) return [];
 
-  const mmsRequired = countryCode === "US" || countryCode === "CA";
+  // This service is receive-only (OTP/SMS). MMS is never required — don't filter on it.
   const isFrance = countryCode === "FR";
   const fetchLimit = limit * 4;
 
@@ -100,7 +101,7 @@ async function searchAvailableNumbers(
     if (isFrance) {
       // France : tenter mobile en priorité, fallback sur local
       try {
-        rawNumbers = await fetchTelnyxNumbers(countryCode, { "filter[number_type]": "mobile" }, fetchLimit);
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, "mobile");
         if (rawNumbers.length > 0) {
           console.log(`[Telnyx] FR Mobile — ${rawNumbers.length} candidat(s) bruts reçus`);
         } else {
@@ -108,17 +109,16 @@ async function searchAvailableNumbers(
         }
       } catch {
         console.log("[Telnyx] FR Mobile non disponible, fallback sur Local");
-        rawNumbers = await fetchTelnyxNumbers(countryCode, {}, fetchLimit);
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit);
         console.log(`[Telnyx] FR Local — ${rawNumbers.length} candidat(s) bruts reçus`);
       }
     } else {
-      const extra: Record<string, string> = {};
-      if (mmsRequired) extra["filter[features][]"] = "mms";
-      rawNumbers = await fetchTelnyxNumbers(countryCode, extra, fetchLimit);
+      rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit);
       console.log(`[Telnyx] ${countryCode} — ${rawNumbers.length} candidat(s) bruts reçus`);
     }
 
-    // Post-filtre strict : SMS obligatoire, MMS pour US/CA, pas de regulatory_requirements pour US/CA
+    // Post-filtre : SMS obligatoire. Pour les numéros US/CA, rejeter si exigences réglementaires
+    // (complexité administrative incompatible avec un achat automatique).
     const filtered = rawNumbers.filter((n: any) => {
       const features: string[] = (n.features ?? []).map((f: any) =>
         typeof f === "string" ? f : f.name
@@ -129,11 +129,9 @@ async function searchAvailableNumbers(
         console.warn(`[Telnyx] ${n.phone_number} rejeté — SMS non confirmé`);
         return false;
       }
-      if (mmsRequired && !features.includes("mms")) {
-        console.warn(`[Telnyx] ${n.phone_number} rejeté — MMS non confirmé pour ${countryCode}`);
-        return false;
-      }
-      if (mmsRequired && reqs.length > 0) {
+      const requiresRegulatoryDocs = reqs.length > 0;
+      const isNorthAmerica = countryCode === "US" || countryCode === "CA";
+      if (isNorthAmerica && requiresRegulatoryDocs) {
         console.warn(`[Telnyx] ${n.phone_number} rejeté — regulatory_requirements requis pour ${countryCode}`);
         return false;
       }
@@ -142,28 +140,12 @@ async function searchAvailableNumbers(
 
     console.log(`[Telnyx] ${countryCode} — ${filtered.length}/${rawNumbers.length} candidat(s) retenu(s) après filtre`);
 
-    const results = filtered.slice(0, limit);
-
-    if (results.length === 0 && rawNumbers.length > 0 && mmsRequired) {
-      // Fallback SMS-only si filtre MMS trop strict
-      const smsOnly = rawNumbers.filter((n: any) => {
-        const features: string[] = (n.features ?? []).map((f: any) =>
-          typeof f === "string" ? f : f.name
-        );
-        return features.includes("sms");
-      }).slice(0, limit);
-      if (smsOnly.length > 0) {
-        console.log(`[Telnyx] Fallback SMS-uniquement : ${smsOnly.length} numéro(s) pour ${countryCode}`);
-        return smsOnly.map((n: any) => mapTelnyxNumber(n, countryCode));
-      }
-    }
-
-    if (results.length === 0) {
+    if (filtered.length === 0) {
       console.warn(`[Telnyx] Aucun numéro valide trouvé pour ${countryCode}`);
       return [];
     }
 
-    return results.map((n: any) => mapTelnyxNumber(n, countryCode));
+    return filtered.slice(0, limit).map((n: any) => mapTelnyxNumber(n, countryCode));
   } catch (err: any) {
     console.error("[Telnyx] searchAvailableNumbers:", err.message);
     return [];
