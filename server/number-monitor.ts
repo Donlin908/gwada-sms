@@ -379,7 +379,8 @@ export async function syncTelnyxNumbers(): Promise<{ synced: number; invalidated
 }
 
 export async function validateExistingNumbers(): Promise<number> {
-  if (!isTwilioConfigured()) {
+  // Sauter si aucun fournisseur n'est configuré
+  if (!isTwilioConfigured() && !isProviderConfigured("telnyx")) {
     return 0;
   }
 
@@ -519,6 +520,7 @@ export async function runMonitoringCycle(): Promise<MonitoringStats> {
   const alertsSent = await checkAndAlertHighUsage();
   const purchased = await checkAndAutoPurchase();
   await checkQualityAndRetireNumbers();
+  await validateExistingNumbers();
   
   const stats = await getMonitoringStats();
   stats.alertsSent = alertsSent;

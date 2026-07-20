@@ -2058,7 +2058,10 @@ export async function registerRoutes(
         const signature = req.headers["telnyx-signature-ed25519"] as string | undefined;
         const timestamp = req.headers["telnyx-timestamp"] as string | undefined;
         if (signature && timestamp) {
-          const message = Buffer.from(`${timestamp}|${JSON.stringify(req.body)}`);
+          // Telnyx signe le payload brut — utiliser req.rawBody et non JSON.stringify(req.body)
+          // (la re-sérialisation peut différer du payload original : espaces, ordre des clés)
+          const rawPayload = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString() : JSON.stringify(req.body);
+          const message = Buffer.from(`${timestamp}|${rawPayload}`);
           const pubKey = crypto.createPublicKey({
             key: Buffer.from(telnyxPublicKey, "base64"),
             format: "der",
