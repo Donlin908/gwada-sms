@@ -69,18 +69,28 @@ function mapTelnyxNumber(n: any, countryCode: string): AvailableNumberToPurchase
   };
 }
 
+interface TelnyxSearchOptions {
+  numberType: "local" | "mobile" | "toll_free";
+  /** Quickship = numéros disponibles immédiatement sans délai de provisioning */
+  quickship?: boolean;
+}
+
 async function fetchTelnyxNumbers(
   countryCode: string,
   fetchLimit: number,
-  numberType?: string
+  opts: TelnyxSearchOptions
 ): Promise<any[]> {
   const params = new URLSearchParams({
     "filter[country_code]": countryCode,
     "filter[limit]": String(fetchLimit),
+    "filter[number_type]": opts.numberType,
+    // Réservables = achetables programmatiquement ; exclure les numéros déjà retenus
+    "filter[reservable]": "true",
+    "filter[exclude_held_numbers]": "true",
   });
-  // Telnyx requires repeated params for multiple feature values — use append()
+  // Telnyx : paramètres multi-valeurs avec append() (pas spread objet)
   params.append("filter[features][]", "sms");
-  if (numberType) params.append("filter[number_type]", numberType);
+  if (opts.quickship) params.append("filter[quickship]", "true");
   const data = await apiFetch(`/available_phone_numbers?${params}`);
   return data?.data ?? [];
 }
@@ -91,7 +101,7 @@ async function searchAvailableNumbers(
 ): Promise<AvailableNumberToPurchase[]> {
   if (!apiKey) return [];
 
-  // This service is receive-only (OTP/SMS). MMS is never required — don't filter on it.
+  // Ce service est en réception uniquement (OTP/SMS) — MMS jamais requis.
   const isFrance = countryCode === "FR";
   const fetchLimit = limit * 4;
 
@@ -99,9 +109,9 @@ async function searchAvailableNumbers(
     let rawNumbers: any[] = [];
 
     if (isFrance) {
-      // France : tenter mobile en priorité, fallback sur local
+      // France : mobile en priorité (+336/+337), fallback local (+33939)
       try {
-        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, "mobile");
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "mobile" });
         if (rawNumbers.length > 0) {
           console.log(`[Telnyx] FR Mobile — ${rawNumbers.length} candidat(s) bruts reçus`);
         } else {
@@ -109,16 +119,28 @@ async function searchAvailableNumbers(
         }
       } catch {
         console.log("[Telnyx] FR Mobile non disponible, fallback sur Local");
-        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit);
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
         console.log(`[Telnyx] FR Local — ${rawNumbers.length} candidat(s) bruts reçus`);
       }
     } else {
-      rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit);
-      console.log(`[Telnyx] ${countryCode} — ${rawNumbers.length} candidat(s) bruts reçus`);
+      // US / CA : numéros locaux uniquement (standard du site, cohérent avec Twilio)
+      // quickship = disponibles immédiatement sans délai de provisioning
+      rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
+        numberType: "local",
+        quickship: true,
+      });
+      console.log(`[Telnyx] ${countryCode} Local — ${rawNumbers.length} candidat(s) bruts reçus`);
+
+      // Fallback sans quickship si résultats insuffisants
+      if (rawNumbers.length < limit) {
+        console.log(`[Telnyx] ${countryCode} — résultats insuffisants avec quickship, retry sans`);
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
+        console.log(`[Telnyx] ${countryCode} Local (sans quickship) — ${rawNumbers.length} candidat(s) bruts reçus`);
+      }
     }
 
-    // Post-filtre : SMS obligatoire. Pour les numéros US/CA, rejeter si exigences réglementaires
-    // (complexité administrative incompatible avec un achat automatique).
+    // Post-filtre : SMS obligatoire + rejeter si exigences réglementaires pour US/CA
+    // (documents administratifs incompatibles avec un achat automatique)
     const filtered = rawNumbers.filter((n: any) => {
       const features: string[] = (n.features ?? []).map((f: any) =>
         typeof f === "string" ? f : f.name
@@ -132,13 +154,13 @@ async function searchAvailableNumbers(
       const requiresRegulatoryDocs = reqs.length > 0;
       const isNorthAmerica = countryCode === "US" || countryCode === "CA";
       if (isNorthAmerica && requiresRegulatoryDocs) {
-        console.warn(`[Telnyx] ${n.phone_number} rejeté — regulatory_requirements requis pour ${countryCode}`);
+        console.warn(`[Telnyx] ${n.phone_number} rejeté — exigences réglementaires pour ${countryCode}`);
         return false;
       }
       return true;
     });
 
-    console.log(`[Telnyx] ${countryCode} — ${filtered.length}/${rawNumbers.length} candidat(s) retenu(s) après filtre`);
+    console.log(`[Telnyx] ${countryCode} — ${filtered.length}/${rawNumbers.length} candidat(s) retenus après filtre`);
 
     if (filtered.length === 0) {
       console.warn(`[Telnyx] Aucun numéro valide trouvé pour ${countryCode}`);
