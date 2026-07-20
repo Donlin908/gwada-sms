@@ -2124,14 +2124,10 @@ export async function registerRoutes(
       });
       await storage.incrementSmsReceivedCount(phoneNumber.id);
 
-      telegram.notifySmsReceived(phoneNumber.number, fromNumber, text, phoneNumber.country, undefined, phoneNumber.provider ?? "telnyx").catch(() => {});
-
       const activeRes = await storage.getActiveReservation(phoneNumber.id);
-      const providerBadge: Record<string, string> = { telnyx: "🔵 Telnyx", twilio: "🟣 Twilio" };
-      const providerTag = providerBadge[phoneNumber.provider ?? "telnyx"] ?? phoneNumber.provider ?? "Telnyx";
 
-      // Lookup fire-and-forget sur l'expéditeur pour enrichir la notif Telegram
-      // (ne bloque pas la réponse webhook — coût : 1 appel API Telnyx)
+      // Lookup fire-and-forget sur l'expéditeur (carrier/type de ligne)
+      // Ne bloque pas la réponse webhook — coût : 1 appel API Telnyx
       lookupPhoneNumber(fromNumber).then((lookup) => {
         const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
         const lineEmoji: Record<string, string> = { mobile: "📱", landline: "☎️", voip: "💻", unknown: "❓" };
@@ -2142,19 +2138,18 @@ export async function registerRoutes(
         if (activeRes?.telegramChatId) {
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code> — ${providerTag}\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
             `De : <code>${fromNumber}</code>${lineTag ? `\n🔍 ${lineTag}` : ""}\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
           telegram.sendMessage(activeRes.telegramChatId, tgText).catch(() => {});
         }
       }).catch(() => {
-        // Lookup échoué — envoyer la notif sans enrichissement
         if (activeRes?.telegramChatId) {
           const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code> — ${providerTag}\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
             `De : <code>${fromNumber}</code>\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
@@ -2372,6 +2367,20 @@ export async function registerRoutes(
 
         await db.update(phoneNumbers).set({ isAvailable: false }).where(eq(phoneNumbers.id, phoneNumberId));
         console.log(`[ConfirmPayment] Created reservation for user ${userId || 'guest'} on ${phoneNumberId}`);
+
+        // Notif admin Telegram — paiement confirmé via confirm-payment (fallback webhook)
+        const [paidNum] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, phoneNumberId));
+        if (paidNum) {
+          const paidAmount = checkoutSession.amount_total ?? 0;
+          telegram.notifyNewPayment({
+            amount: paidAmount,
+            currency: checkoutSession.currency || "eur",
+            planName: plan.name,
+            phoneNumber: paidNum.number,
+            country: paidNum.country,
+            userEmail: checkoutSession.customer_details?.email || undefined,
+          }).catch(() => {});
+        }
 
       } else if (req.session.userId && reservation.userId !== req.session.userId) {
         // Always link to currently logged-in user — they're the one who just paid and called this endpoint

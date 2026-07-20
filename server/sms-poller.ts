@@ -57,18 +57,11 @@ async function pollOnce(): Promise<void> {
           userEmail = (u as any)?.email;
         }
 
-        telegram
-          .notifySmsReceived(r.number, msg.from, msg.body, r.country, userEmail, r.provider ?? "twilio")
-          .catch(err => console.error("[SMS Poller] notifySmsReceived:", err.message));
-
-        const providerBadge: Record<string, string> = { telnyx: "🔵 Telnyx", twilio: "🟣 Twilio" };
-        const providerTag = providerBadge[r.provider ?? "twilio"] ?? r.provider ?? "Twilio";
-
         if (r.telegramChatId) {
           const flag = r.country === "france" ? "🇫🇷" : r.country === "canada" ? "🇨🇦" : "🇺🇸";
           const text =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${r.number}</code> — ${providerTag}\n` +
+            `Sur votre numéro : ${flag} <code>${r.number}</code>\n` +
             `De : <code>${msg.from}</code>\n` +
             `Message : <code>${msg.body}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
