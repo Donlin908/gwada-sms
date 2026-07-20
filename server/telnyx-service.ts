@@ -256,6 +256,44 @@ async function checkNumberActive(providerId: string): Promise<boolean> {
   }
 }
 
+// ─── Number Lookup ──────────────────────────────────────────────────────────
+
+export interface NumberLookupResult {
+  phoneNumber: string;
+  /** Type de ligne : mobile | landline | voip | unknown */
+  lineType: string;
+  /** Nom de l'opérateur (ex. "T-Mobile USA") */
+  carrierName: string;
+  /** Prénom / nom si disponible (caller-name lookup) */
+  callerName?: string;
+  callerType?: string;
+}
+
+/**
+ * Effectue un lookup Telnyx sur un numéro de téléphone.
+ * Retourne les infos de carrier + caller-name.
+ * Coût : 1 requête API par appel — ne pas appeler en boucle.
+ */
+export async function lookupPhoneNumber(phoneNumber: string): Promise<NumberLookupResult | null> {
+  if (!apiKey) return null;
+  try {
+    const encoded = encodeURIComponent(phoneNumber);
+    const data = await apiFetch(`/number_lookup/${encoded}?type=carrier&type=caller-name`);
+    const d = data?.data;
+    if (!d) return null;
+    return {
+      phoneNumber: d.phone_number ?? phoneNumber,
+      lineType: d.carrier?.type ?? "unknown",
+      carrierName: d.carrier?.name ?? "unknown",
+      callerName: d.caller_name?.caller_name ?? undefined,
+      callerType: d.caller_name?.caller_type ?? undefined,
+    };
+  } catch (err: any) {
+    console.error("[Telnyx] lookupPhoneNumber:", err.message);
+    return null;
+  }
+}
+
 export const telnyxProvider: SmsProvider = {
   isConfigured: () => !!apiKey,
   listNumbers: listTelnyxNumbers,

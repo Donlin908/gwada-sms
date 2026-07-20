@@ -5,6 +5,7 @@ import { type Country, pricingPlans, phoneNumbers, reservations, users, smsMessa
 import * as twilioService from "./twilio-service";
 import { getProvider, isProviderConfigured } from "./sms-provider";
 import "./telnyx-service";
+import { lookupPhoneNumber } from "./telnyx-service";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
 import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
@@ -1293,6 +1294,23 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Number Lookup (Telnyx) ─────────────────────────────────────────────────
+  app.get("/api/admin/number-lookup", async (req, res) => {
+    if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
+    const number = req.query.number as string | undefined;
+    if (!number) return res.status(400).json({ error: "Paramètre 'number' requis (ex: +33612345678)" });
+    if (!isProviderConfigured("telnyx")) {
+      return res.status(503).json({ error: "Telnyx non configuré — lookup indisponible" });
+    }
+    try {
+      const result = await lookupPhoneNumber(number);
+      if (!result) return res.status(404).json({ error: "Lookup échoué ou numéro invalide" });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/admin/reset-availability", async (req, res) => {
     if (!req.session?.adminAuth) return res.status(401).json({ error: "Non autorisé" });
     try {
@@ -2109,16 +2127,38 @@ export async function registerRoutes(
       telegram.notifySmsReceived(phoneNumber.number, fromNumber, text, phoneNumber.country, undefined).catch(() => {});
 
       const activeRes = await storage.getActiveReservation(phoneNumber.id);
-      if (activeRes?.telegramChatId) {
+
+      // Lookup fire-and-forget sur l'expéditeur pour enrichir la notif Telegram
+      // (ne bloque pas la réponse webhook — coût : 1 appel API Telnyx)
+      lookupPhoneNumber(fromNumber).then((lookup) => {
         const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
-        const tgText =
-          `📩 <b>Nouveau SMS reçu</b>\n` +
-          `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
-          `De : <code>${fromNumber}</code>\n` +
-          `Message : <code>${text}</code>\n` +
-          `📅 ${new Date().toLocaleString("fr-FR")}`;
-        telegram.sendMessage(activeRes.telegramChatId, tgText).catch(() => {});
-      }
+        const lineEmoji: Record<string, string> = { mobile: "📱", landline: "☎️", voip: "💻", unknown: "❓" };
+        const lineTag = lookup
+          ? `${lineEmoji[lookup.lineType] ?? "📡"} ${lookup.lineType.toUpperCase()} — ${lookup.carrierName}${lookup.callerName ? ` (${lookup.callerName})` : ""}`
+          : null;
+
+        if (activeRes?.telegramChatId) {
+          const tgText =
+            `📩 <b>Nouveau SMS reçu</b>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `De : <code>${fromNumber}</code>${lineTag ? `\n🔍 ${lineTag}` : ""}\n` +
+            `Message : <code>${text}</code>\n` +
+            `📅 ${new Date().toLocaleString("fr-FR")}`;
+          telegram.sendMessage(activeRes.telegramChatId, tgText).catch(() => {});
+        }
+      }).catch(() => {
+        // Lookup échoué — envoyer la notif sans enrichissement
+        if (activeRes?.telegramChatId) {
+          const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
+          const tgText =
+            `📩 <b>Nouveau SMS reçu</b>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `De : <code>${fromNumber}</code>\n` +
+            `Message : <code>${text}</code>\n` +
+            `📅 ${new Date().toLocaleString("fr-FR")}`;
+          telegram.sendMessage(activeRes.telegramChatId, tgText).catch(() => {});
+        }
+      });
 
       return res.sendStatus(200);
     } catch (err: any) {
