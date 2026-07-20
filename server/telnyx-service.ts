@@ -175,26 +175,31 @@ async function purchasePhoneNumber(
   }
 
   try {
-    const body: any = { phone_number: phoneNumber };
-    const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID;
-    if (messagingProfileId) body.messaging_profile_id = messagingProfileId;
-
-    // Injecter le bundle réglementaire pour les numéros France
+    // Telnyx V2 API : l'achat se fait via POST /number_orders (et non /phone_numbers)
+    // Structure : { phone_numbers: [{ phone_number }], messaging_profile_id?, regulatory_requirements? }
+    const phoneEntry: any = { phone_number: phoneNumber };
     if (isFrance && bundleId && rawReqs.length > 0) {
-      body.regulatory_requirements = rawReqs.map((req) => ({
+      phoneEntry.regulatory_requirements = rawReqs.map((req) => ({
         requirement_id: req.requirement_id,
         field_value: bundleId,
       }));
       console.log(`[Telnyx] Achat France avec bundle ${bundleId} (${rawReqs.length} exigence(s))`);
     }
 
-    const data = await apiFetch("/phone_numbers", {
+    const body: any = { phone_numbers: [phoneEntry] };
+    const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID;
+    if (messagingProfileId) body.messaging_profile_id = messagingProfileId;
+
+    const data = await apiFetch("/number_orders", {
       method: "POST",
       body: JSON.stringify(body),
     });
-    const num = data?.data;
+
+    // Réponse : data.data.phone_numbers[0]
+    const order = data?.data;
+    const num = order?.phone_numbers?.[0];
     if (!num) return null;
-    console.log(`[Telnyx] Numéro ${num.phone_number} acheté ✓ (id: ${num.id})`);
+    console.log(`[Telnyx] Numéro ${num.phone_number} commandé ✓ (order id: ${order.id})`);
     return {
       sid: num.id,
       phoneNumber: num.phone_number,
