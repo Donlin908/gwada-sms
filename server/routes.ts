@@ -2124,9 +2124,11 @@ export async function registerRoutes(
       });
       await storage.incrementSmsReceivedCount(phoneNumber.id);
 
-      telegram.notifySmsReceived(phoneNumber.number, fromNumber, text, phoneNumber.country, undefined).catch(() => {});
+      telegram.notifySmsReceived(phoneNumber.number, fromNumber, text, phoneNumber.country, undefined, phoneNumber.provider ?? "telnyx").catch(() => {});
 
       const activeRes = await storage.getActiveReservation(phoneNumber.id);
+      const providerBadge: Record<string, string> = { telnyx: "🔵 Telnyx", twilio: "🟣 Twilio" };
+      const providerTag = providerBadge[phoneNumber.provider ?? "telnyx"] ?? phoneNumber.provider ?? "Telnyx";
 
       // Lookup fire-and-forget sur l'expéditeur pour enrichir la notif Telegram
       // (ne bloque pas la réponse webhook — coût : 1 appel API Telnyx)
@@ -2140,7 +2142,7 @@ export async function registerRoutes(
         if (activeRes?.telegramChatId) {
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code> — ${providerTag}\n` +
             `De : <code>${fromNumber}</code>${lineTag ? `\n🔍 ${lineTag}` : ""}\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
@@ -2152,7 +2154,7 @@ export async function registerRoutes(
           const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code> — ${providerTag}\n` +
             `De : <code>${fromNumber}</code>\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
