@@ -250,9 +250,12 @@ async function checkNumberActive(providerId: string): Promise<boolean> {
   try {
     const data = await apiFetch(`/phone_numbers/${encodeURIComponent(providerId)}`);
     const status: string = data?.data?.status ?? "";
+    // Si l'API répond mais retourne un statut inconnu, on ne pénalise pas le numéro
+    if (!status) return true;
     return status === "active";
   } catch {
-    return false;
+    // Erreur réseau / API indisponible — on conserve l'état actuel (pas de faux-négatif)
+    return true;
   }
 }
 

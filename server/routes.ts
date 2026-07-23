@@ -1164,6 +1164,7 @@ export async function registerRoutes(
           id: n.id,
           number: n.number,
           country: n.country,
+          provider: n.provider ?? "twilio",
           usageCount: n.usageCount,
           isAvailable: n.isAvailable,
           isValid: n.isValid,
