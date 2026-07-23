@@ -2172,9 +2172,10 @@ export async function registerRoutes(
       const { phoneNumberId, body, from } = req.body;
       const [msg] = await db.insert(smsMessages).values({
         phoneNumberId,
-        body: body || "Ceci est un SMS de test pour GWADA SMS. Code: 123456",
-        from: from || "+33600000000",
+        content: body || "Ceci est un SMS de test pour GWADA SMS. Code: 123456",
+        sender: from || "+33600000000",
         twilioMessageSid: "SM" + Math.random().toString(36).substring(7),
+        receivedAt: new Date(),
       }).returning();
 
       // Notifier Telegram
@@ -2190,7 +2191,7 @@ export async function registerRoutes(
         `);
         const reservation = Array.isArray(rawReservation) ? rawReservation[0] : (rawReservation as any)?.rows?.[0];
         const userEmail = (reservation as any)?.email;
-        await telegram.notifySmsReceived(num.number, msg.from, msg.body, num.country, userEmail);
+        await telegram.notifySmsReceived(num.number, msg.sender, msg.content, num.country, userEmail);
       }
 
       res.json(msg);
