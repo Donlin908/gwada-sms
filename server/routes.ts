@@ -1892,7 +1892,7 @@ export async function registerRoutes(
           }
 
           try {
-            const countryCode = countryArg === "france" ? "FR" : countryArg === "canada" ? "CA" : "US";
+            const countryCode = (countryArg as string) === "france" ? "FR" : (countryArg as string) === "canada" ? "CA" : "US";
             const available = await twilioService.searchAvailableNumbers(countryCode, 5);
             const candidate = available.find((n: any) => n.smsCapable);
 
@@ -1917,7 +1917,7 @@ export async function registerRoutes(
               isValid: true,
             });
 
-            const flag = countryArg === "france" ? "🇫🇷" : countryArg === "canada" ? "🇨🇦" : "🇺🇸";
+            const flag = (countryArg as string) === "france" ? "🇫🇷" : (countryArg as string) === "canada" ? "🇨🇦" : "🇺🇸";
             await tgSend(chatId,
               `✅ <b>Numéro acheté avec succès !</b>\n\n` +
               `${flag} <code>${purchased.phoneNumber}</code>\n` +

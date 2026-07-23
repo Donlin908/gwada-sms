@@ -141,7 +141,7 @@ export async function sendUsageAlert(data: UsageAlertData): Promise<boolean> {
 }
 
 export interface TicketResponseData {
-  ticketId: number;
+  ticketId: string | number;
   category: string;
   originalMessage: string;
   adminResponse: string;

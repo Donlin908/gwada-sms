@@ -22,6 +22,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
   password: true,
+  firstName: true,
+  lastName: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -49,6 +51,8 @@ export const phoneNumbers = pgTable("phone_numbers", {
 export const insertPhoneNumberSchema = createInsertSchema(phoneNumbers).omit({
   id: true,
   createdAt: true,
+}).extend({
+  country: z.enum(["france", "usa", "canada"]),
 });
 
 export type InsertPhoneNumber = z.infer<typeof insertPhoneNumberSchema>;

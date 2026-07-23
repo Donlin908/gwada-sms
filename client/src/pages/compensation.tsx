@@ -42,7 +42,7 @@ export default function CompensationPage() {
 
   const claimMutation = useMutation({
     mutationFn: () =>
-      apiRequest("POST", `/api/compensation/${token}/claim`, { phoneNumberId: selectedNumberId }),
+      apiRequest("POST", `/api/compensation/${token}/claim`, { phoneNumberId: selectedNumberId }).then(r => r.json()),
     onSuccess: (res: ClaimResult) => {
       setClaimed(res.reservation);
     },

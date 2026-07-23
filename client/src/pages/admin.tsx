@@ -37,7 +37,8 @@ import {
   Inbox,
   Trash2,
   TicketCheck,
-  FileText
+  FileText,
+  Mail
 } from "lucide-react";
 
 interface AdminStats {
@@ -585,7 +586,7 @@ export default function AdminPage() {
 
   const generateCompensationMutation = useMutation({
     mutationFn: ({ reservationId, reason, sendToTelegram }: { reservationId: string; reason: string; sendToTelegram?: boolean }) =>
-      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason, sendToTelegram }),
+      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason, sendToTelegram }).then(r => r.json()),
     onSuccess: (data: { link: string; telegramLink: string; token: string; sentViaTelegram?: boolean }) => {
       setGeneratedLink({ link: data.link, telegramLink: data.telegramLink, reservationId: data.token });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/compensation/reservations"] });
@@ -2069,7 +2070,7 @@ function AdminSupportTicketsCard() {
 
   const generateCompFromTicketMutation = useMutation({
     mutationFn: ({ reservationId, reason }: { reservationId: string; reason: string }) =>
-      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }),
+      apiRequest("POST", "/api/admin/compensation/generate", { reservationId, reason }).then(r => r.json()),
     onSuccess: (data: { link: string; token: string }, variables) => {
       setCompLinks((prev) => ({ ...prev, [variables.reservationId]: data.link }));
       navigator.clipboard.writeText(data.link).catch(() => {});

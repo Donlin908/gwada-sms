@@ -250,7 +250,7 @@ export async function searchAvailableNumbers(countryCode: string, limit: number 
 
     if (results.length === 0 && rawNumbers.length > 0) {
       // Fallback uniquement si le filtre MMS est trop strict — on garde au moins le SMS
-      if (mmsRequired) {
+      if (mmsSupported) {
         const smsOnly = rawNumbers.filter((num: any) => {
           const caps = num.capabilities;
           return caps && typeof caps === "object" && readCap(caps, "sms");
@@ -336,7 +336,7 @@ async function getApprovedBundleSid(countryCode: string): Promise<string | undef
     const allBundles = await client.numbers.v2.regulatoryCompliance.bundles.list({ limit: 20 });
     const approved = allBundles.find(b =>
       APPROVED_BUNDLE_STATUSES.includes(b.status as string) &&
-      (b.isoCountry === countryCode || !b.isoCountry)
+      ((b as any).isoCountry === countryCode || !(b as any).isoCountry)
     );
     if (approved) {
       console.log(`[Twilio] Bundle approuvé trouvé pour ${countryCode}: ${approved.sid} (${approved.friendlyName}) — statut: ${approved.status}`);

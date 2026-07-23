@@ -41,7 +41,7 @@ export interface IStorage {
   updateUserVerification(userId: string, data: { emailVerified?: boolean; verificationToken?: string | null; verificationExpires?: Date | null }): Promise<void>;
   getReservationsByUserId(userId: string): Promise<Reservation[]>;
   
-  getPhoneNumbers(country: Country): Promise<PhoneNumber[]>;
+  getPhoneNumbers(country?: Country): Promise<PhoneNumber[]>;
   getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
   getPhoneNumberByTwilioSid(twilioSid: string): Promise<PhoneNumber | undefined>;
   getPhoneNumberByNumber(number: string): Promise<PhoneNumber | undefined>;
@@ -146,17 +146,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(reservations.createdAt);
   }
 
-  async getPhoneNumbers(country: Country): Promise<PhoneNumber[]> {
-    return db
-      .select()
-      .from(phoneNumbers)
-      .where(
-        and(
-          eq(phoneNumbers.country, country),
-          eq(phoneNumbers.isAvailable, true),
-          eq(phoneNumbers.isValid, true)
-        )
-      );
+  async getPhoneNumbers(country?: Country): Promise<PhoneNumber[]> {
+    const conditions = [
+      eq(phoneNumbers.isAvailable, true),
+      eq(phoneNumbers.isValid, true),
+    ];
+    if (country) conditions.push(eq(phoneNumbers.country, country));
+    return db.select().from(phoneNumbers).where(and(...conditions));
   }
 
   async getPhoneNumber(id: string): Promise<PhoneNumber | undefined> {
