@@ -22,6 +22,8 @@ export interface MonitoringStats {
   numbersSynced: number;
   numbersInvalidated: number;
   lastSyncAt: string | null;
+  lastTwilioSyncAt: string | null;
+  lastTelnyxSyncAt: string | null;
 }
 
 export async function checkAndAlertHighUsage(): Promise<number> {
@@ -241,6 +243,7 @@ export async function syncTwilioNumbers(): Promise<{ synced: number; invalidated
           twilioSid: twilioNum.sid,
           number: twilioNum.phoneNumber,
           country,
+          provider: "twilio",
           isAvailable: true,
           isValid: twilioNum.capabilities.sms,
           lastValidatedAt: new Date(),
@@ -337,14 +340,16 @@ export async function syncTelnyxNumbers(): Promise<{ synced: number; invalidated
 
     for (const tn of telnyxNumbers) {
       const existing = await storage.getPhoneNumberByTwilioSid(tn.sid);
+
+      let country: Country = "usa";
+      if (tn.phoneNumber.startsWith("+33")) {
+        country = "france";
+      } else if (tn.phoneNumber.startsWith("+1") && tn.phoneNumber.length >= 5) {
+        const areaCode = tn.phoneNumber.substring(2, 5);
+        if (CANADA_AREA_CODES.has(areaCode)) country = "canada";
+      }
+
       if (!existing) {
-        let country: Country = "usa";
-        if (tn.phoneNumber.startsWith("+33")) {
-          country = "france";
-        } else if (tn.phoneNumber.startsWith("+1") && tn.phoneNumber.length >= 5) {
-          const areaCode = tn.phoneNumber.substring(2, 5);
-          if (CANADA_AREA_CODES.has(areaCode)) country = "canada";
-        }
         await storage.createPhoneNumber({
           twilioSid: tn.sid,
           number: tn.phoneNumber,
@@ -356,6 +361,35 @@ export async function syncTelnyxNumbers(): Promise<{ synced: number; invalidated
         });
         synced++;
         console.log(`[Telnyx Sync] Numéro importé : ${tn.phoneNumber}`);
+      } else {
+        // Mise à jour du numéro existant (validité SMS + pays si mal classifié)
+        const needsCountryFix = existing.country !== country;
+        const needsValidityUpdate = existing.isValid !== tn.smsCapable;
+
+        if (needsCountryFix) {
+          console.log(`[Telnyx Sync] Re-classification pays : ${tn.phoneNumber} ${existing.country} → ${country}`);
+        }
+
+        await storage.updatePhoneNumber(existing.id, {
+          isValid: tn.smsCapable,
+          lastTwilioCheck: new Date(),
+          ...(needsCountryFix ? { country } : {}),
+          // Restaurer la disponibilité si SMS redevient actif et pas de réservation en cours
+          ...(needsValidityUpdate && tn.smsCapable ? {} : {}),
+        });
+
+        // Restaurer isAvailable si le numéro était invalide et redevient valide
+        if (needsValidityUpdate && tn.smsCapable && !existing.isAvailable) {
+          const activeRes = await storage.getActiveReservation(existing.id);
+          if (!activeRes) {
+            await storage.updatePhoneNumberAvailability(existing.id, true);
+            console.log(`[Telnyx Sync] Disponibilité restaurée : ${tn.phoneNumber}`);
+          }
+        }
+
+        if (needsValidityUpdate || needsCountryFix) {
+          synced++;
+        }
       }
     }
 
@@ -415,8 +449,17 @@ export async function validateExistingNumbers(): Promise<number> {
 export async function getMonitoringStats(): Promise<MonitoringStats> {
   const allNumbers = await storage.getAllPhoneNumbers();
   const threshold = parseInt(await storage.getSetting("usage_alert_threshold") || String(USAGE_ALERT_THRESHOLD));
-  const lastSyncAt = await storage.getSetting("last_twilio_sync");
-  
+  const [lastTwilioSyncAt, lastTelnyxSyncAt] = await Promise.all([
+    storage.getSetting("last_twilio_sync"),
+    storage.getSetting("last_telnyx_sync"),
+  ]);
+
+  // Dernière sync toutes sources confondues — la plus récente des deux
+  const timestamps = [lastTwilioSyncAt, lastTelnyxSyncAt].filter(Boolean) as string[];
+  const lastSyncAt = timestamps.length
+    ? timestamps.reduce((a, b) => (new Date(a) > new Date(b) ? a : b))
+    : null;
+
   const totalUsage = allNumbers.reduce((sum, n) => sum + n.usageCount, 0);
   
   return {
@@ -430,7 +473,9 @@ export async function getMonitoringStats(): Promise<MonitoringStats> {
     numbersPurchased: 0,
     numbersSynced: 0,
     numbersInvalidated: 0,
-    lastSyncAt: lastSyncAt || null,
+    lastSyncAt,
+    lastTwilioSyncAt: lastTwilioSyncAt || null,
+    lastTelnyxSyncAt: lastTelnyxSyncAt || null,
   };
 }
 

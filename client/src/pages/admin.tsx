@@ -1094,9 +1094,9 @@ export default function AdminPage() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${syncTwilioMutation.isPending ? 'animate-spin' : ''}`} />
                 {syncTwilioMutation.isPending ? 'Synchronisation...' : 'Synchroniser maintenant'}
               </Button>
-              {stats?.lastSyncAt && (
+              {(stats as any)?.lastTwilioSyncAt && (
                 <p className="text-xs text-muted-foreground">
-                  Dernière sync : {new Date(stats.lastSyncAt).toLocaleString('fr-FR')}
+                  Dernière sync Twilio : {new Date((stats as any).lastTwilioSyncAt).toLocaleString('fr-FR')}
                 </p>
               )}
             </div>
@@ -1123,6 +1123,11 @@ export default function AdminPage() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${syncTelnyxMutation.isPending ? 'animate-spin' : ''}`} />
                 {syncTelnyxMutation.isPending ? 'Synchronisation...' : 'Synchroniser Telnyx'}
               </Button>
+              {(stats as any)?.lastTelnyxSyncAt && (
+                <p className="text-xs text-muted-foreground">
+                  Dernière sync Telnyx : {new Date((stats as any).lastTelnyxSyncAt).toLocaleString('fr-FR')}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

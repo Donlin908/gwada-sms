@@ -477,6 +477,7 @@ export async function registerRoutes(
           id: num.id,
           number: num.number,
           country: num.country,
+          provider: num.provider ?? "twilio",
           isAvailable: num.isAvailable,
           isValid: num.isValid,
           twilioActive,
