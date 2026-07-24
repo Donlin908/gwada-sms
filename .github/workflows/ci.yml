@@ -25,7 +25,7 @@ jobs:
         run: npm ci
 
       - name: Type-check (tsc)
-        run: npm run check
+        run: ./node_modules/.bin/tsc --noEmit --skipLibCheck
 
       - name: Tests (vitest)
         run: npm test
