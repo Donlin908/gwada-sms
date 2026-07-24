@@ -22,10 +22,12 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm install
+        env:
+          NODE_ENV: development
 
       - name: Type-check (tsc)
-        run: ./node_modules/.bin/tsc --noEmit --skipLibCheck
+        run: npx tsc --noEmit --skipLibCheck
 
       - name: Tests (vitest)
         run: npm test

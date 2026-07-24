@@ -1,0 +1,46 @@
+# Solution du Job Échoué
+
+## Problème
+La vérification de type TypeScript échoue avec cette erreur :
+```
+error TS2688: Cannot find type definition file for 'vite/client'.
+```
+
+Cela se produit parce que votre `tsconfig.json` référence `vite/client` dans le tableau `types` (ligne 16), mais `vite` est listé uniquement comme une `devDependency` dans `package.json`. La commande `npm ci` n'a pas pu installer correctement les dépendances, probablement à cause de l'erreur npm visible dans les logs ("npm error Exit handler never called!").
+
+## Cause racine
+La configuration `types: ["node", "vite/client"]` dans `tsconfig.json` s'attend à ce que les définitions de type Vite soient disponibles, mais elles n'ont pas été installées correctement à cause du problème d'installation npm dans le workflow.
+
+## Solution
+
+**Mettez à jour votre `tsconfig.json`** en supprimant la référence à `vite/client` du tableau `types` global, car TypeScript ne peut pas trouver ces définitions de type lors de la vérification de tous les fichiers du projet :
+
+```json
+{
+  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "noEmit": true,
+    "module": "ESNext",
+    "strict": true,
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  }
+}
+```
+
+**Fichier à modifier :**
+- [`tsconfig.json`](https://github.com/Donlin908/gwada-sms/blob/b560df6685b911f3b6b150485cdf464d91123b22/tsconfig.json) - Supprimez `"vite/client"` du tableau `types` à la ligne 16
+
+Si vous avez vraiment besoin des types Vite pour le code client, créez plutôt un `tsconfig.client.json` séparé pour la compilation spécifique au client.
