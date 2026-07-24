@@ -4,3 +4,4 @@
 - [CSRF without extra deps](csrf-double-submit-cookie.md) — implemented double-submit-cookie CSRF manually (no csurf/cookie-parser needed); verify with curl, not the flaky e2e browser subagent
 - [IDOR on claim endpoints](idor-reservation-claim.md) — "claim my order/reservation" endpoints need a real possession secret, not just a public/enumerable business identifier
 - [Telegram webhook auth](telegram-webhook-secret.md) — webhook must verify X-Telegram-Bot-Api-Secret-Token; secret derived via HMAC-SHA256(botToken, "gwada-telegram-webhook"), no new env var needed
+- [Replit lockfile registry URLs](replit-lockfile-registry.md) — package-lock.json from Replit has ~15% URLs pointing to internal proxy; breaks all CI/external envs; fix: replace package-firewall.replit.local with registry.npmjs.org
