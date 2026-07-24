@@ -19,15 +19,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         env:
           NODE_ENV: development
 
       - name: Type-check (tsc)
-        run: npx tsc --noEmit --skipLibCheck
+        run: node_modules/.bin/tsc --noEmit --skipLibCheck
 
       - name: Tests (vitest)
         run: npm test
+        env:
+          NODE_ENV: development
