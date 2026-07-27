@@ -6,6 +6,33 @@ GWADA SMS is a virtual phone number service that allows users to receive SMS ver
 
 **Core Purpose:** Enable users to select virtual phone numbers (France or USA) and view incoming SMS messages in real-time for verification purposes.
 
+## CI/CD — Sécurité & Robustesse (2026-07-25)
+
+Pipeline CI/CD multi-layers pour détection précoce des risques avant production :
+
+- **`ci.yml` — Build & Tests** : `npm ci --ignore-scripts` + `tsc` + `vitest` + `npm run build` (détecte casses de production). Permissions minimales, concurrency (annule runs redondants), actions SHA-pinnées. Durée ~2-3 min.
+
+- **`security.yml` — Audit & Secrets** : 
+  - `npm audit --omit=dev --audit-level=high` (dépendances prod seules, `continue-on-error: true` pour alertes non-bloquantes)
+  - `gitleaks` full history scan (`fetch-depth: 0`) → détecte `sk_live_*`, `whsec_*`, tokens, clés privées dans l'historique git
+  - Schedule weekly (lundi 06:00 UTC) pour détecter nouvelles CVE
+
+- **`codeql.yml` — SAST Statique** : Analyse JS/TS via CodeQL `security-extended` → alertes XSS, injections, patterns OWASP dans **Security → Code scanning alerts** GitHub.
+
+- **`.github/dependabot.yml`** : PRs automatiques hebdo
+  - **npm:** groupes `@radix-ui/*`, `@types/*`, `minor+patch` ; ignore majors `stripe`, `twilio`, `drizzle-orm` (revue manuelle)
+  - **github-actions:** updates auto
+
+- **Branch Protection** (à configurer manuellement sur GitHub UI)
+  - ✅ Require PR + status checks (`ci.yml`, `security.yml`, `codeql`) + up-to-date avant merge
+  - ✅ Require conversation resolution
+
+**Leçons apprises :**
+- Ancien secret Stripe (`whsec_l72s5B9AmSKEVR3pP72OoNFLMKqLBpCe`) était en clair dans `.replit` (fichier versionné) → rotation effectuée 06/07. `.gitleaksignore` créé pour ignorer le leak connu (secret invalide).
+- `package-lock.json` généré par Replit contenait 140 URLs `package-firewall.replit.local` (proxy interne) → inaccessible depuis GitHub Actions. Script de remplacement (`replit.local` → `registry.npmjs.org`) à relancer à chaque `npm install` + push GitHub.
+
+**Roadmap future :** Voir `CI_SECURITY_ROADMAP.md` pour Phase 2 (cache, perf), Phase 3 (E2E, staging deploy, blue-green), Phase 4 (observabilité, compliance).
+
 ## Recent Changes (2026-07-06)
 
 - **Durcissement sécurité** : Ajout de Helmet (headers HTTP : CSP stricte en production autorisant Stripe.js/Google Fonts/Sentry, HSTS, X-Frame-Options, X-Content-Type-Options). Protection CSRF maison (double-submit cookie : cookie `csrf_token` non-httpOnly + header `X-CSRF-Token` requis sur POST/PUT/PATCH/DELETE vers `/api/*`, webhooks Stripe/Telegram exemptés). `client/src/lib/queryClient.ts` (`apiRequest`) attache automatiquement le header CSRF. Audit npm : 25 vulnérabilités réduites à 2 (mise à jour majeure nodemailer ; `xlsx` reste sans correctif mais n'est utilisé que par un script interne non exposé). Revue des logs serveur : aucune donnée sensible (mdp/token/carte) loggée en production.
