@@ -1,0 +1,51 @@
+name: Security
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  schedule:
+    # Chaque lundi à 06:00 UTC — détecte les nouvelles CVE sur des dépendances non modifiées
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    name: npm audit (dépendances)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.1.0
+        with:
+          node-version: 22
+
+      # Ne bloque pas la CI (continue-on-error) — sert d'alerte, pas de couperet.
+      # À passer en obligatoire une fois le backlog CVE nettoyé.
+      - name: Audit npm (production uniquement, niveau high+)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+  gitleaks:
+    name: Gitleaks (secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Scanne tout l'historique pour attraper d'anciens leaks (le secret Stripe qu'on a rotaté est déjà dans git)
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

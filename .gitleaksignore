@@ -1,0 +1,8 @@
+# Gitleaks Ignore File
+# Secrets rotatés et invalides — listés ci-dessous pour prévenir les faux positifs
+
+# Stripe webhook secret (STRIPE_WEBHOOK_SECRET)
+# Rotaté 06/07/2026 après exposition dans .replit
+# Ancienne valeur: whsec_l72s5B9AmSKEVR3pP72OoNFLMKqLBpCe (désormais invalide)
+# Nouvelle valeur: Stockée en secret Replit chiffré, jamais en clair
+whsec_l72s5B9AmSKEVR3pP72OoNFLMKqLBpCe

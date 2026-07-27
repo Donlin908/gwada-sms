@@ -38,17 +38,18 @@ export default function Payment() {
   const [location] = useLocation();
   const { toast } = useToast();
   const phoneId = params?.numberId || null;
-  
+
   // Read plan from URL query params
   const searchParams = new URLSearchParams(location.split("?")[1] || "");
   const preselectedPlanId = searchParams.get("plan");
-  
+
   // Find the preselected plan
-  const initialPlan = preselectedPlanId 
+  const initialPlan = preselectedPlanId
     ? pricingPlans.find(p => p.id === preselectedPlanId) || null
     : null;
-  
+
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(initialPlan);
+  const [acceptCGU, setAcceptCGU] = useState(false);
   const hasAutoTriggered = useRef(false);
 
   const { data: phoneNumber, isLoading: loadingPhone } = useQuery<PhoneNumberResponse>({
@@ -258,10 +259,28 @@ export default function Payment() {
 
           {selectedPlan && (
             <div className="mt-8 text-center">
+              {/* Checkbox CGU */}
+              <div className="mb-6 flex items-center justify-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="accept-cgu"
+                  checked={acceptCGU}
+                  onChange={(e) => setAcceptCGU(e.target.checked)}
+                  className="h-4 w-4 rounded border border-gray-300"
+                  data-testid="checkbox-accept-cgu"
+                />
+                <label htmlFor="accept-cgu" className="cursor-pointer text-muted-foreground">
+                  J'accepte les{" "}
+                  <Link href="/cgu" className="font-semibold text-primary hover:underline">
+                    Conditions Générales d'Utilisation
+                  </Link>
+                </label>
+              </div>
+
               <Button
                 size="lg"
                 onClick={handleCheckout}
-                disabled={checkoutMutation.isPending}
+                disabled={checkoutMutation.isPending || !acceptCGU}
                 className="gap-2"
                 data-testid="button-checkout"
               >
@@ -269,6 +288,11 @@ export default function Payment() {
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Redirection...
+                  </>
+                ) : !acceptCGU ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Acceptez les CGU pour continuer
                   </>
                 ) : (
                   <>

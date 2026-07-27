@@ -3,6 +3,7 @@ import { sendUsageAlert, sendNewNumberNotification, isEmailConfigured } from "./
 import { searchAvailableNumbers, purchasePhoneNumber, isConfigured as isTwilioConfigured, getAllTwilioNumbers, validatePhoneNumber, checkFranceBundleApproved } from "./twilio-service";
 import { listTelnyxNumbers } from "./telnyx-service";
 import { getProvider, isProviderConfigured } from "./sms-provider";
+import { autoSearchAvailableNumbers, autoFallbackPurchase, optimalNumberTypeForCountry, type NumberFilterCriteria } from "./number-purchase";
 import * as telegram from "./telegram-service";
 import type { Country } from "@shared/schema";
 
@@ -144,35 +145,47 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
       }
 
       console.log(`Need to purchase numbers for ${country} (current: ${validAvailableNumbers.length}, min: ${minPerCountry})`);
-      
-      const available = await searchAvailableNumbers(countryCode, 1);
+
+      // ✨ Nouvelle: Recherche multi-provider avec fallback automatique
+      const filterCriteria: NumberFilterCriteria = {
+        country: countryCode,
+        numberType: optimalNumberTypeForCountry(countryCode),
+        requireSmsCapable: true,
+        excludeRegulatoryReqs: true, // Exclure numéros avec exigences docs (pour achat auto)
+      };
+
+      const available = await autoSearchAvailableNumbers(filterCriteria, 1);
       let bundleErrorEncountered = false;
-      
+
       for (const num of available) {
         if (!num.smsCapable) {
           console.warn(`[Monitor] Numéro ${num.phoneNumber} ignoré — non compatible SMS.`);
           continue;
         }
-        let purchased = null;
-        try {
-          purchased = await purchasePhoneNumber(num.phoneNumber, undefined, num.smsCapable);
-        } catch (err: any) {
-          console.warn(`[Monitor] Achat ${num.phoneNumber} échoué : ${err?.userMessage || err?.message}`);
-          purchased = null;
-        }
+
+        // ✨ Nouvelle: Achat avec fallback automatique (Twilio → Telnyx)
+        const result = await autoFallbackPurchase(
+          num.phoneNumber,
+          "twilio", // Provider préféré
+          num.providerData // Passe bundle ID si fourni
+        );
+        const purchased = result?.purchased ?? null;
+        const provider = result?.provider ?? "unknown";
         
         if (purchased) {
+          // ✨ Nouvelle: Enregistre le provider (twilio ou telnyx)
           await storage.createPhoneNumber({
             twilioSid: purchased.sid,
             number: purchased.phoneNumber,
             country,
+            provider, // ✨ Stocke quel provider a acheté
             isAvailable: true,
             isValid: true,
           });
-          
+
           purchasedNumbers.push(purchased.phoneNumber);
-          
-          const reason = `Nombre de numéros disponibles insuffisant (${validAvailableNumbers.length}/${minPerCountry})`;
+
+          const reason = `Nombre de numéros insuffisant (${validAvailableNumbers.length}/${minPerCountry}) — acheté via ${provider}`;
           await sendNewNumberNotification({
             phoneNumber: purchased.phoneNumber,
             country,
@@ -180,7 +193,9 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           });
           await telegram.notifyNumberPurchased(purchased.phoneNumber, country, reason);
         } else if (country === "france") {
+          // ✨ Amélioration: Si achat échoue sur TOUS les providers (pas juste Twilio)
           bundleErrorEncountered = true;
+          console.error(`[Monitor] Tous les providers ont échoué pour France`);
           break;
         }
       }

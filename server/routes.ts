@@ -6,6 +6,7 @@ import * as twilioService from "./twilio-service";
 import { getProvider, isProviderConfigured } from "./sms-provider";
 import "./telnyx-service";
 import { lookupPhoneNumber } from "./telnyx-service";
+import { autoSearchAvailableNumbers, autoFallbackPurchase, optimalNumberTypeForCountry, type NumberFilterCriteria } from "./number-purchase";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
 import { startBotScheduler, getStripeRevenueForPeriod } from "./bot-scheduler";
@@ -1202,54 +1203,56 @@ export async function registerRoutes(
 
       const { country, provider = "twilio" } = parseResult.data;
 
-      let prov;
-      try {
-        prov = getProvider(provider);
-      } catch {
-        return res.status(503).json({ error: `Fournisseur ${provider} inconnu.` });
-      }
-      if (!prov.isConfigured()) {
-        return res.status(503).json({ error: `Le fournisseur ${provider} n'est pas configuré.` });
-      }
-
+      // ✨ Nouvelle: Recherche multi-provider avec filtres intelligents
       const countryCode = country === "france" ? "FR" : country === "canada" ? "CA" : "US";
-      const available = await prov.searchAvailableNumbers(countryCode, 5);
-      const smsCandidate = available.find(n => n.smsCapable);
+      const filterCriteria: NumberFilterCriteria = {
+        country: countryCode,
+        numberType: optimalNumberTypeForCountry(countryCode),
+        requireSmsCapable: true,
+        excludeRegulatoryReqs: true,
+      };
 
-      if (!smsCandidate) {
-        if (country === "france") {
-          return res.status(404).json({
-            error: `Aucun numéro France compatible SMS n'est disponible chez ${provider} actuellement. Réessayez plus tard.`,
-          });
-        }
-        return res.status(404).json({ error: "Aucun numéro compatible SMS disponible dans cette région" });
+      const available = await autoSearchAvailableNumbers(filterCriteria, 5);
+
+      if (available.length === 0) {
+        return res.status(404).json({
+          error: `Aucun numéro compatible SMS trouvé pour ${country}. Essayé: Twilio + Telnyx.`,
+        });
       }
 
-      let purchased;
-      try {
-        purchased = await prov.purchasePhoneNumber(smsCandidate.phoneNumber, undefined, smsCandidate.smsCapable, smsCandidate.providerData);
-      } catch (purchaseErr: any) {
-        return res.status(400).json({ error: purchaseErr?.userMessage || `Échec de l'achat auprès de ${provider}.` });
+      const smsCandidate = available[0]; // Pris le meilleur (déjà filtré)
+
+      // ✨ Nouvelle: Achat avec fallback automatique
+      const result = await autoFallbackPurchase(
+        smsCandidate.phoneNumber,
+        provider,
+        smsCandidate.providerData
+      );
+
+      if (!result) {
+        return res.status(400).json({
+          error: `Échec de l'achat sur tous les providers. Vérifiez les configurations (API keys, bundles, etc.)`,
+        });
       }
-      if (!purchased) {
-        return res.status(500).json({ error: "Le numéro trouvé n'est pas compatible SMS. Aucun numéro SMS disponible dans cette région." });
-      }
+
+      const { purchased, provider: actualProvider } = result;
 
       const phoneNumber = await storage.createPhoneNumber({
         twilioSid: purchased.sid,
         number: purchased.phoneNumber,
         country: country as Country,
-        provider,
+        provider: actualProvider, // ✨ Enregistre le provider utilisé
         isAvailable: true,
         isValid: true,
       });
-      
+
       res.json({
         message: "Number purchased successfully",
         phoneNumber: {
           id: phoneNumber.id,
           number: phoneNumber.number,
           country: phoneNumber.country,
+          provider: actualProvider, // ✨ Retourne le provider utilisé
         },
       });
     } catch (error) {
