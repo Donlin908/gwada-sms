@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Dépendances npm (application)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "npm"]
+    # Regroupe les mises à jour mineures/patch dans une seule PR par groupe
+    groups:
+      radix-ui:
+        patterns: ["@radix-ui/*"]
+      types:
+        patterns: ["@types/*"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    # Ignore les majors sur les libs critiques — nécessitent revue manuelle
+    ignore:
+      - dependency-name: "stripe"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "twilio"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "drizzle-orm"
+        update-types: ["version-update:semver-major"]
+
+  # Actions GitHub (workflows)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "github-actions"]

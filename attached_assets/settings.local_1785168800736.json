@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config *)",
+      "mcp__58b2a01a-e2bd-4f2a-8221-df932a73214a__notion-fetch",
+      "mcp__58b2a01a-e2bd-4f2a-8221-df932a73214a__notion-update-page",
+      "mcp__58b2a01a-e2bd-4f2a-8221-df932a73214a__notion-create-pages"
+    ]
+  }
+}
