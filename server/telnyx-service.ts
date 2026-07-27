@@ -46,7 +46,7 @@ export async function listTelnyxNumbers(): Promise<ProviderPhoneNumber[]> {
   }
 }
 
-function mapTelnyxNumber(n: any, countryCode: string): AvailableNumberToPurchase {
+function mapTelnyxNumber(n: any, countryCode: string, numberType?: "mobile" | "local"): AvailableNumberToPurchase {
   const features: string[] = (n.features ?? []).map((f: any) =>
     typeof f === "string" ? f : f.name
   );
@@ -60,6 +60,7 @@ function mapTelnyxNumber(n: any, countryCode: string): AvailableNumberToPurchase
     mmsCapable: features.includes("mms"),
     voiceCapable: features.includes("voice"),
     addressRequired: (n.regulatory_requirements ?? []).length > 0,
+    numberType: numberType || "unknown",
     monthlyFee: n.cost_information?.monthly_cost
       ? parseFloat(n.cost_information.monthly_cost)
       : undefined,
@@ -114,29 +115,52 @@ async function searchAvailableNumbers(
         rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "mobile" });
         if (rawNumbers.length > 0) {
           console.log(`[Telnyx] FR Mobile — ${rawNumbers.length} candidat(s) bruts reçus`);
+          rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "mobile" }));
         } else {
           throw new Error("Aucun numéro mobile disponible");
         }
       } catch {
         console.log("[Telnyx] FR Mobile non disponible, fallback sur Local");
         rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
+        rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "local" }));
         console.log(`[Telnyx] FR Local — ${rawNumbers.length} candidat(s) bruts reçus`);
       }
-    } else {
-      // US / CA : numéros locaux uniquement (standard du site, cohérent avec Twilio)
+    } else if (countryCode === "US" || countryCode === "CA") {
+      // US / CA : mobile en priorité (meilleure délivrabilité OTP), fallback local
       // quickship = disponibles immédiatement sans délai de provisioning
-      rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
-        numberType: "local",
-        quickship: true,
-      });
-      console.log(`[Telnyx] ${countryCode} Local — ${rawNumbers.length} candidat(s) bruts reçus`);
+      try {
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
+          numberType: "mobile",
+          quickship: true,
+        });
+        if (rawNumbers.length > 0) {
+          console.log(`[Telnyx] ${countryCode} Mobile — ${rawNumbers.length} candidat(s) bruts reçus`);
+          rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "mobile" }));
+        } else {
+          throw new Error("Aucun numéro mobile disponible");
+        }
+      } catch {
+        console.log(`[Telnyx] ${countryCode} Mobile non disponible, fallback sur Local`);
+        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
+          numberType: "local",
+          quickship: true,
+        });
+        rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "local" }));
+        console.log(`[Telnyx] ${countryCode} Local — ${rawNumbers.length} candidat(s) bruts reçus`);
+      }
 
       // Fallback sans quickship si résultats insuffisants
       if (rawNumbers.length < limit) {
         console.log(`[Telnyx] ${countryCode} — résultats insuffisants avec quickship, retry sans`);
-        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
-        console.log(`[Telnyx] ${countryCode} Local (sans quickship) — ${rawNumbers.length} candidat(s) bruts reçus`);
+        const localList = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
+        rawNumbers = [...rawNumbers, ...localList.map(n => ({ ...n, _numberType: "local" }))];
+        console.log(`[Telnyx] ${countryCode} Local (sans quickship) — ${localList.length} candidat(s) bruts reçus`);
       }
+    } else {
+      // Autres pays : local uniquement
+      rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
+      rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "local" }));
+      console.log(`[Telnyx] ${countryCode} Local — ${rawNumbers.length} candidat(s) bruts reçus`);
     }
 
     // Post-filtre : SMS obligatoire + rejeter si exigences réglementaires pour US/CA
@@ -167,7 +191,7 @@ async function searchAvailableNumbers(
       return [];
     }
 
-    return filtered.slice(0, limit).map((n: any) => mapTelnyxNumber(n, countryCode));
+    return filtered.slice(0, limit).map((n: any) => mapTelnyxNumber(n, countryCode, n._numberType));
   } catch (err: any) {
     console.error("[Telnyx] searchAvailableNumbers:", err.message);
     return [];

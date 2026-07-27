@@ -195,19 +195,36 @@ export async function searchAvailableNumbers(countryCode: string, limit: number 
 
     let rawNumbers: any[] = [];
 
-    if (countryCode === "FR") {
+    // Pour US/CA, chercher MOBILE en priorité (meilleure délivrabilité OTP)
+    // Pour FR, chercher MOBILE fallback LOCAL
+    if (countryCode === "US" || countryCode === "CA") {
+      try {
+        const mobileList = await client.availablePhoneNumbers(countryCode).mobile.list(searchParams);
+        if (mobileList.length > 0) {
+          console.log(`[Twilio] Recherche ${countryCode} Mobile : ${mobileList.length} numéro(s) trouvé(s)`);
+          rawNumbers = mobileList.map((n: any) => ({ ...n, _numberType: "mobile" }));
+        } else {
+          throw new Error("Aucun numéro Mobile disponible");
+        }
+      } catch (mobileErr: any) {
+        console.log(`[Twilio] Mobile ${countryCode} non disponible (${mobileErr?.status || mobileErr?.message}), fallback sur Local`);
+        const localList = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
+        rawNumbers = localList.map((n: any) => ({ ...n, _numberType: "local" }));
+        console.log(`[Twilio] Recherche ${countryCode} Local : ${rawNumbers.length} numéro(s) trouvé(s)`);
+      }
+    } else if (countryCode === "FR") {
       try {
         const mobileList = await client.availablePhoneNumbers(countryCode).mobile.list(searchParams);
         if (mobileList.length > 0) {
           console.log(`[Twilio] Recherche France Mobile : ${mobileList.length} numéro(s) trouvé(s)`);
-          rawNumbers = mobileList.map((n: any) => ({ ...n, _frType: "mobile" }));
+          rawNumbers = mobileList.map((n: any) => ({ ...n, _numberType: "mobile" }));
         } else {
           throw new Error("Aucun numéro Mobile disponible");
         }
       } catch (mobileErr: any) {
         console.log(`[Twilio] Mobile FR non disponible (${mobileErr?.status || mobileErr?.message}), fallback sur Local`);
         const localList = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
-        rawNumbers = localList.map((n: any) => ({ ...n, _frType: "local" }));
+        rawNumbers = localList.map((n: any) => ({ ...n, _numberType: "local" }));
         console.log(`[Twilio] Recherche France Local : ${rawNumbers.length} numéro(s) trouvé(s)`);
       }
     } else {
@@ -278,6 +295,8 @@ function mapNumber(num: any, mmsCapable: boolean): AvailableNumberToPurchase {
   const smsOk = readCap(caps, "sms");
   const mmsOk = mmsCapable && readCap(caps, "mms");
   const voiceOk = readCap(caps, "voice");
+  // Type de numéro mis par searchAvailableNumbers() : mobile/local/unknown
+  const numberType = num._numberType as "mobile" | "local" | undefined;
   return {
     phoneNumber: num.phoneNumber,
     friendlyName: num.friendlyName,
@@ -288,6 +307,7 @@ function mapNumber(num: any, mmsCapable: boolean): AvailableNumberToPurchase {
     mmsCapable: mmsOk,
     voiceCapable: voiceOk,
     addressRequired: addrReq !== "none",
+    numberType: numberType || "unknown",
   };
 }
 

@@ -9,6 +9,8 @@ export interface AvailableNumberToPurchase {
   voiceCapable: boolean;
   addressRequired: boolean;
   monthlyFee?: number;
+  /** Type de numéro : local/mobile/toll-free/voip — pour tri géographique & délivrabilité OTP */
+  numberType?: "local" | "mobile" | "toll-free" | "voip" | "unknown";
   /** Provider-specific metadata (e.g. regulatory_requirements for Telnyx France) */
   providerData?: Record<string, unknown>;
 }

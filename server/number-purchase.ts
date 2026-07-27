@@ -155,11 +155,17 @@ function filterNumbers(
       return false;
     }
 
-    // Filtrer par type (si spécifié)
+    // Filtrer par type (MOBILE pour US/CA délivrabilité OTP)
     if (criteria.numberType === OptimalNumberType.MOBILE) {
-      // Telnyx: check features pour "mobile"
-      // Twilio: pas de distinction mobile vs local en API, différencié par NPA
-      // Pour l'instant, accepter tous (amélioration future)
+      // Rejeter VoIP et TOLL_FREE pour US/CA (mauvaise délivrabilité OTP)
+      if (num.numberType === "voip" || num.numberType === "toll-free") {
+        console.warn(`[NumberPurchase] Rejeter ${num.phoneNumber}: type=${num.numberType} (besoin MOBILE)`);
+        return false;
+      }
+      // Préférer "mobile" si disponible, accepter "local" si pas "mobile"
+      if (num.numberType && !["mobile", "local", "unknown"].includes(num.numberType)) {
+        return false;
+      }
     }
 
     // Filtrer par région (ex: "IL" pour Illinois)
