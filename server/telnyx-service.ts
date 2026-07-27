@@ -126,7 +126,7 @@ async function searchAvailableNumbers(
         console.log(`[Telnyx] FR Local — ${rawNumbers.length} candidat(s) bruts reçus`);
       }
     } else if (countryCode === "US" || countryCode === "CA") {
-      // US / CA : mobile en priorité (meilleure délivrabilité OTP), fallback local
+      // US / CA : STRICTEMENT MOBILE (rejeter LOCAL qui cause rejet Klarna)
       // quickship = disponibles immédiatement sans délai de provisioning
       try {
         rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
@@ -139,22 +139,24 @@ async function searchAvailableNumbers(
         } else {
           throw new Error("Aucun numéro mobile disponible");
         }
-      } catch {
-        console.log(`[Telnyx] ${countryCode} Mobile non disponible, fallback sur Local`);
-        rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
-          numberType: "local",
-          quickship: true,
-        });
-        rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "local" }));
-        console.log(`[Telnyx] ${countryCode} Local — ${rawNumbers.length} candidat(s) bruts reçus`);
-      }
-
-      // Fallback sans quickship si résultats insuffisants
-      if (rawNumbers.length < limit) {
-        console.log(`[Telnyx] ${countryCode} — résultats insuffisants avec quickship, retry sans`);
-        const localList = await fetchTelnyxNumbers(countryCode, fetchLimit, { numberType: "local" });
-        rawNumbers = [...rawNumbers, ...localList.map(n => ({ ...n, _numberType: "local" }))];
-        console.log(`[Telnyx] ${countryCode} Local (sans quickship) — ${localList.length} candidat(s) bruts reçus`);
+      } catch (err1: any) {
+        console.log(`[Telnyx] ${countryCode} Mobile quickship non disponible, retry sans quickship`);
+        try {
+          // Retry MOBILE sans quickship (pas de LOCAL fallback!)
+          rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
+            numberType: "mobile",
+          });
+          if (rawNumbers.length > 0) {
+            console.log(`[Telnyx] ${countryCode} Mobile (sans quickship) — ${rawNumbers.length} candidat(s) bruts reçus`);
+            rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "mobile" }));
+          } else {
+            throw new Error("Aucun numéro mobile sans quickship");
+          }
+        } catch (err2: any) {
+          // ❌ Pas de MOBILE disponible du tout → rejeter complètement (pas de LOCAL fallback)
+          console.error(`[Telnyx] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna.`);
+          rawNumbers = [];
+        }
       }
     } else {
       // Autres pays : local uniquement

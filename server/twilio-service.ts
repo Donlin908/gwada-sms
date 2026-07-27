@@ -195,7 +195,7 @@ export async function searchAvailableNumbers(countryCode: string, limit: number 
 
     let rawNumbers: any[] = [];
 
-    // Pour US/CA, chercher MOBILE en priorité (meilleure délivrabilité OTP)
+    // Pour US/CA, chercher STRICTEMENT MOBILE (rejeter LOCAL qui cause rejet Klarna +19802840149)
     // Pour FR, chercher MOBILE fallback LOCAL
     if (countryCode === "US" || countryCode === "CA") {
       try {
@@ -207,10 +207,9 @@ export async function searchAvailableNumbers(countryCode: string, limit: number 
           throw new Error("Aucun numéro Mobile disponible");
         }
       } catch (mobileErr: any) {
-        console.log(`[Twilio] Mobile ${countryCode} non disponible (${mobileErr?.status || mobileErr?.message}), fallback sur Local`);
-        const localList = await client.availablePhoneNumbers(countryCode).local.list(searchParams);
-        rawNumbers = localList.map((n: any) => ({ ...n, _numberType: "local" }));
-        console.log(`[Twilio] Recherche ${countryCode} Local : ${rawNumbers.length} numéro(s) trouvé(s)`);
+        // ❌ Pas de MOBILE disponible → rejeter complètement (PAS de LOCAL fallback!)
+        console.error(`[Twilio] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna.`);
+        rawNumbers = [];
       }
     } else if (countryCode === "FR") {
       try {

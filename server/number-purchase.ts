@@ -155,15 +155,11 @@ function filterNumbers(
       return false;
     }
 
-    // Filtrer par type (MOBILE pour US/CA délivrabilité OTP)
+    // Filtrer par type (STRICTEMENT MOBILE pour US/CA OTP — pas de fallback LOCAL)
     if (criteria.numberType === OptimalNumberType.MOBILE) {
-      // Rejeter VoIP et TOLL_FREE pour US/CA (mauvaise délivrabilité OTP)
-      if (num.numberType === "voip" || num.numberType === "toll-free") {
-        console.warn(`[NumberPurchase] Rejeter ${num.phoneNumber}: type=${num.numberType} (besoin MOBILE)`);
-        return false;
-      }
-      // Préférer "mobile" si disponible, accepter "local" si pas "mobile"
-      if (num.numberType && !["mobile", "local", "unknown"].includes(num.numberType)) {
+      // REJETER TOUT sauf "mobile" : VoIP, TOLL_FREE, LOCAL, unknown → tous incompatibles
+      if (num.numberType !== "mobile") {
+        console.warn(`[NumberPurchase] ⛔ Rejeter ${num.phoneNumber}: type=${num.numberType} (STRICTEMENT MOBILE requis)`);
         return false;
       }
     }
