@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.1.0
         with:
           node-version: 22
+          cache: "npm"
 
       # Ne bloque pas la CI (continue-on-error) — sert d'alerte, pas de couperet.
       # À passer en obligatoire une fois le backlog CVE nettoyé.

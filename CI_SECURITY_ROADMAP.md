@@ -62,9 +62,9 @@ Stratégie de pipeline CI/CD pour GWADA-SMS et modèle réutilisable pour d'autr
 **Objectif:** Réduire la durée CI (2-3 min → ~1 min), garder les dépôts locaux à jour sans redownload.
 
 ### Roadmap
-- [ ] **npm cache** dans GitHub Actions (retour après le fix du bug `package-lock.json` Replit)
-  - `.github/actions/setup-node` : `cache: npm`
-  - Économise ~20-30s par run
+- [x] **npm cache** dans GitHub Actions ✅ (27/07/2026)
+  - `cache: "npm"` ajouté dans `ci.yml` et `security.yml`
+  - Économise ~20-30s par run (après le 1er run chaud)
 - [ ] **Artifact build cache** (esbuild, Vite)
   - Cache `dist/` entre runs sur même commit
   - Utile pour les deploys itératifs
@@ -170,7 +170,7 @@ jobs:
 - [ ] Tester 1er run (email Dependabot, alertes CodeQL)
 
 ### Phase 2 (Priorisation)
-- [ ] npm cache (facile, ~20s gain)
+- [x] npm cache (facile, ~20s gain) ✅ 27/07/2026
 - [ ] Parallel jobs (moyen effort)
 - [ ] Build cache (avancé)
 
