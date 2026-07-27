@@ -68,8 +68,9 @@ Stratégie de pipeline CI/CD pour GWADA-SMS et modèle réutilisable pour d'autr
 - [ ] **Artifact build cache** (esbuild, Vite)
   - Cache `dist/` entre runs sur même commit
   - Utile pour les deploys itératifs
-- [ ] **Parallel jobs** (npm audit & codeql en parallèle vs séquentiel)
-  - Passe de 2-3 min total à 1-2 min (si CodeQL ~2 min, npm audit ~15s en parallèle)
+- [x] **Parallel jobs** ✅ (27/07/2026)
+  - ci.yml, security.yml et codeql.yml sont des fichiers séparés → GitHub les lance en parallèle automatiquement
+  - Structure `needs:` commentée ajoutée dans ci.yml pour le futur deploy (Phase 3)
 
 ### Metriques à tracker
 - `ci.yml` durée (cible: 1-2 min)
@@ -171,7 +172,7 @@ jobs:
 
 ### Phase 2 (Priorisation)
 - [x] npm cache (facile, ~20s gain) ✅ 27/07/2026
-- [ ] Parallel jobs (moyen effort)
+- [x] Parallel jobs ✅ 27/07/2026 (workflows séparés = parallèle natif GitHub)
 - [ ] Build cache (avancé)
 
 ### Phase 3 (Après stabilité Phase 1)
@@ -287,5 +288,5 @@ Pour copier ce modèle à un autre projet Node.js/TypeScript:
 
 ---
 
-**Last updated:** 25/07/2026
+**Last updated:** 27/07/2026
 **Maintainers:** DLCAD&SERV (linod)

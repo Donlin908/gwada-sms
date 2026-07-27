@@ -47,3 +47,18 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+
+# ─── DEPLOY HOOK (Phase 3 — désactivé) ──────────────────────────────────────
+# Décommenter quand un env de staging est prêt.
+# Le job "deploy" attend que CI + security + codeql soient tous verts.
+#
+#  deploy:
+#    name: Deploy to staging
+#    needs: [check]           # Ajouter: npm-audit (security.yml), codeql (codeql.yml)
+#    runs-on: ubuntu-latest
+#    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+#    environment: staging
+#    steps:
+#      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+#      - run: echo "Deploy to staging here"
+# ─────────────────────────────────────────────────────────────────────────────
