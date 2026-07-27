@@ -40,15 +40,17 @@ export async function autoSearchAvailableNumbers(
   criteria: NumberFilterCriteria,
   limit: number = 5
 ): Promise<AvailableNumberToPurchase[]> {
-  const providers = allConfiguredProviders();
+  // ⚠️  TWILIO SEUL — Telnyx ne supporte pas SMS fiable
+  // (Telnyx France: mobile/local/national n'ont pas SMS; USA/CA: local seulement)
+  // Seul WhatsApp sur Telnyx, pas OTP/SMS
+  const providers = ["twilio"];
 
   if (providers.length === 0) {
-    console.error("[NumberPurchase] Aucun provider SMS configuré (Twilio + Telnyx)");
+    console.error("[NumberPurchase] Twilio non configuré");
     return [];
   }
 
-  // Ordre de préférence : Twilio d'abord, puis Telnyx
-  const providerOrder = ["twilio", "telnyx"].filter(p => providers.includes(p));
+  const providerOrder = providers;
 
   let results: AvailableNumberToPurchase[] = [];
 
@@ -96,13 +98,8 @@ export async function autoFallbackPurchase(
   primaryProvider: string = "twilio",
   providerData?: Record<string, unknown>
 ): Promise<{ provider: string; purchased: PurchasedNumber } | null> {
-  const providers = allConfiguredProviders();
-
-  // Ordre d'essai : primaryProvider d'abord, puis autres
-  const providerOrder = [
-    primaryProvider,
-    ...providers.filter(p => p !== primaryProvider)
-  ].filter(p => providers.includes(p));
+  // ⚠️  TWILIO SEUL — Telnyx ne supporte pas SMS
+  const providerOrder = ["twilio"];
 
   for (const providerName of providerOrder) {
     try {

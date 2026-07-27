@@ -30,6 +30,20 @@ ORDER BY country, "isAvailable" DESC;
 
 ---
 
+## ⚠️ CHANGEMENT D'ARCHITECTURE (27/07/2026 19h30)
+
+**Telnyx déclaré NON-VIABLE pour SMS :**
+- France: mobile/local/national → AUCUN ne supporte SMS
+- USA/CA: local uniquement (pas mobile) → risque rejet Klarna
+- Seul WhatsApp fonctionne → pas OTP/SMS
+
+**Décision: TWILIO SEUL pour production**
+- Twilio supporte .mobile.list() pour USA/CA ✅
+- Twilio supporte tous types pour FR ✅
+- Architecture simplifiée (pas fallback multi-provider)
+
+---
+
 ## 🎯 Étapes de remplacement
 
 ### Étape 1 : Release numéros LOCAL (1h)
@@ -66,31 +80,31 @@ UPDATE phone_numbers SET "deletedAt" = NOW() WHERE number IN (+18207775864, +198
 
 ---
 
-### Étape 2 : Acheter numéros MOBILE (GARANTIS via nouvelle logique)
+### Étape 2 : Acheter numéros MOBILE TWILIO SEUL
 
-**Critères de recherche:**
+**Critères de recherche (TWILIO UNIQUEMENT):**
 
 ```typescript
 const criteria = {
-  country: 'us' | 'ca',
+  country: 'us' | 'ca' | 'fr',
   numberType: OptimalNumberType.MOBILE, // STRICTEMENT MOBILE
   requireSmsCapable: true,
   excludeRegulatoryReqs: true,
 };
 
-// La nouvelle logique (commit bb7ee86) garantit:
-// - Recherche .mobile() en priorité
-// - Pas de fallback LOCAL
-// - Si 0 MOBILE dispo → erreur au lieu d'acheter LOCAL
+// Logique TWILIO uniquement:
+// - USA/CA: .mobile.list() → garantit MOBILE
+// - FR: .mobile.list() → numéros +336/+337 (SMS OK)
+// - Pas de fallback Telnyx (Telnyx n'a pas SMS fiable)
 ```
 
-**Nombres à acheter:**
+**Nombres à acheter via TWILIO :**
 - Replace +18207775864 (US) → 1 MOBILE USA
-- Replace +19802840149 (US) → 1 MOBILE USA  
+- Replace +19802840149 (Telnyx) → 1 MOBILE USA  
 - Potentiel +17179155516 (US) → 1 MOBILE USA
-- **Optionnel:** Ajouter 2-3 numéros MOBILE supplémentaires (buffer pool)
+- **Optionnel:** Ajouter 2 numéros MOBILE supplémentaires (buffer pool)
 
-**Coût:** ~$1.25/mois par numéro (Twilio) ou ~$0.85/mois (Telnyx)
+**Coût:** ~$1.25/mois par numéro (Twilio uniquement)
 
 ---
 
