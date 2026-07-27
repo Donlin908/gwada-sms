@@ -95,26 +95,29 @@ export async function getStripeSync() {
     });
     
     // Add constructEvent capability
+    // SECURITY: STRIPE_WEBHOOK_SECRET must be set. If absent, all webhook requests are rejected.
+    // Set it in Replit Secrets (key: STRIPE_WEBHOOK_SECRET) using the value from
+    // https://dashboard.stripe.com/webhooks → select your endpoint → "Signing secret".
     stripeSync.processWebhook = async (payload: Buffer, signature: string) => {
       const stripe = new Stripe(secretKey);
       const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-      if (endpointSecret) {
-        try {
-          const event = stripe.webhooks.constructEvent(payload, signature, endpointSecret);
-          console.log("[Stripe Webhook] Signature OK — event:", event.type);
-          return event;
-        } catch (err: any) {
-          console.error("[Stripe Webhook] Signature INVALID — requête rejetée:", err.message);
-          throw err;
-        }
+      if (!endpointSecret) {
+        console.error("[Stripe Webhook] ❌ STRIPE_WEBHOOK_SECRET non configuré — toutes les requêtes webhook sont rejetées");
+        throw new Error("STRIPE_WEBHOOK_SECRET not configured — webhook requests rejected for security");
       }
 
-      console.warn("[Stripe Webhook] ⚠️ STRIPE_WEBHOOK_SECRET non configuré — vérification de signature DÉSACTIVÉE");
       try {
-        return JSON.parse(payload.toString());
-      } catch (e) {
-        return null;
+        const event = stripe.webhooks.constructEvent(payload, signature, endpointSecret);
+        console.log("[Stripe Webhook] Signature OK — event:", event.type);
+        return event;
+      } catch (err: any) {
+        if (err.type === "StripeSignatureVerificationError") {
+          console.error("[Stripe Webhook] Signature INVALIDE — requête rejetée:", err.message);
+        } else {
+          console.error("[Stripe Webhook] Erreur constructEvent:", err.message);
+        }
+        throw err;
       }
     };
   }

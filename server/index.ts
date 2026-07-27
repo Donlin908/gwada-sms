@@ -166,6 +166,17 @@ export function log(message: string, source = "express") {
 }
 
 async function main() {
+  // Startup guard: warn loudly if webhook secret is missing
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error(
+      "[Stripe Webhook] ⚠️  STRIPE_WEBHOOK_SECRET not set — " +
+      "webhook signature verification DISABLED. All webhook requests will be rejected. " +
+      "Set this secret in Replit Secrets from https://dashboard.stripe.com/webhooks"
+    );
+  } else {
+    console.log("[Stripe Webhook] ✅ STRIPE_WEBHOOK_SECRET configuré — vérification de signature activée");
+  }
+
   app.post(
     '/api/stripe/webhook',
     express.raw({ type: 'application/json' }),

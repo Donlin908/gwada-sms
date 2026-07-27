@@ -100,7 +100,9 @@ export class WebhookHandlers {
         }
       }
     } catch (err: any) {
+      // Re-throw so the route handler returns HTTP 400 — never swallow signature errors
       console.error("[Stripe Webhook Error]:", err.message);
+      throw err;
     }
   }
 }
