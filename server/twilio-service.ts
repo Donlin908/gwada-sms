@@ -196,19 +196,21 @@ export async function searchAvailableNumbers(countryCode: string, limit: number 
     let rawNumbers: any[] = [];
 
     // Pour US/CA, chercher STRICTEMENT MOBILE (rejeter LOCAL qui cause rejet Klarna +19802840149)
-    // Pour FR, chercher MOBILE fallback LOCAL
+    // Même logique que Telnyx pour cohérence entre providers
     if (countryCode === "US" || countryCode === "CA") {
+      // Étape 1 : Chercher MOBILE
       try {
         const mobileList = await client.availablePhoneNumbers(countryCode).mobile.list(searchParams);
         if (mobileList.length > 0) {
-          console.log(`[Twilio] Recherche ${countryCode} Mobile : ${mobileList.length} numéro(s) trouvé(s)`);
+          console.log(`[Twilio] ${countryCode} Mobile — ${mobileList.length} candidat(s) bruts reçus`);
           rawNumbers = mobileList.map((n: any) => ({ ...n, _numberType: "mobile" }));
         } else {
           throw new Error("Aucun numéro Mobile disponible");
         }
-      } catch (mobileErr: any) {
-        // ❌ Pas de MOBILE disponible → rejeter complètement (PAS de LOCAL fallback!)
-        console.error(`[Twilio] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna.`);
+      } catch (err: any) {
+        console.warn(`[Twilio] ${countryCode} Mobile non disponible (${err?.status || err?.message})`);
+        // ❌ Pas de fallback LOCAL — rejeter comme Telnyx pour cohérence
+        console.error(`[Twilio] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna (+18207775864).`);
         rawNumbers = [];
       }
     } else if (countryCode === "FR") {

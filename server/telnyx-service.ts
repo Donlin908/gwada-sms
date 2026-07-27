@@ -126,9 +126,10 @@ async function searchAvailableNumbers(
         console.log(`[Telnyx] FR Local — ${rawNumbers.length} candidat(s) bruts reçus`);
       }
     } else if (countryCode === "US" || countryCode === "CA") {
-      // US / CA : STRICTEMENT MOBILE (rejeter LOCAL qui cause rejet Klarna)
-      // quickship = disponibles immédiatement sans délai de provisioning
+      // US / CA : STRICTEMENT MOBILE (rejeter LOCAL qui cause rejet Klarna +18207775864, +19802840149)
+      // Même logique que Twilio pour cohérence entre providers
       try {
+        // Étape 1 : Chercher MOBILE avec quickship
         rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
           numberType: "mobile",
           quickship: true,
@@ -137,12 +138,12 @@ async function searchAvailableNumbers(
           console.log(`[Telnyx] ${countryCode} Mobile — ${rawNumbers.length} candidat(s) bruts reçus`);
           rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "mobile" }));
         } else {
-          throw new Error("Aucun numéro mobile disponible");
+          throw new Error("Aucun numéro mobile quickship disponible");
         }
       } catch (err1: any) {
-        console.log(`[Telnyx] ${countryCode} Mobile quickship non disponible, retry sans quickship`);
+        console.warn(`[Telnyx] ${countryCode} Mobile quickship non disponible, retry sans quickship`);
         try {
-          // Retry MOBILE sans quickship (pas de LOCAL fallback!)
+          // Étape 2 : Retry MOBILE sans quickship (toujours PAS de LOCAL fallback!)
           rawNumbers = await fetchTelnyxNumbers(countryCode, fetchLimit, {
             numberType: "mobile",
           });
@@ -150,11 +151,11 @@ async function searchAvailableNumbers(
             console.log(`[Telnyx] ${countryCode} Mobile (sans quickship) — ${rawNumbers.length} candidat(s) bruts reçus`);
             rawNumbers = rawNumbers.map(n => ({ ...n, _numberType: "mobile" }));
           } else {
-            throw new Error("Aucun numéro mobile sans quickship");
+            throw new Error("Aucun numéro mobile disponible");
           }
         } catch (err2: any) {
-          // ❌ Pas de MOBILE disponible du tout → rejeter complètement (pas de LOCAL fallback)
-          console.error(`[Telnyx] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna.`);
+          // ❌ Pas de MOBILE disponible du tout → rejeter complètement (PAS de LOCAL fallback!)
+          console.error(`[Telnyx] ⛔ ${countryCode} — AUCUN NUMÉRO MOBILE DISPONIBLE. Rejeter local pour éviter rejet Klarna (+18207775864, +19802840149).`);
           rawNumbers = [];
         }
       }
