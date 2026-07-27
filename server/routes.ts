@@ -2121,7 +2121,7 @@ export async function registerRoutes(
         if (activeRes?.telegramChatId) {
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber?.number ?? sms.toNumber}</code>\n` +
             `De : <code>${fromNumber}</code>${lineTag ? `\n🔍 ${lineTag}` : ""}\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
