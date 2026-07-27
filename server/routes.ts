@@ -6,6 +6,7 @@ import * as twilioService from "./twilio-service";
 import { getProvider, isProviderConfigured } from "./sms-provider";
 import "./telnyx-service";
 import { lookupPhoneNumber } from "./telnyx-service";
+import { parseTelnyxMessageReceived, processTelnyxInboundSms, verifyTelnyxSignature } from "./telnyx-webhook-handler";
 import { autoSearchAvailableNumbers, autoFallbackPurchase, optimalNumberTypeForCountry, type NumberFilterCriteria } from "./number-purchase";
 import * as numberMonitor from "./number-monitor";
 import { startMonthlyReminder, sendMonthlyReminder } from "./monthly-reminder";
@@ -2084,57 +2085,34 @@ export async function registerRoutes(
           // Telnyx signe le payload brut — utiliser req.rawBody et non JSON.stringify(req.body)
           // (la re-sérialisation peut différer du payload original : espaces, ordre des clés)
           const rawPayload = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString() : JSON.stringify(req.body);
-          const message = Buffer.from(`${timestamp}|${rawPayload}`);
-          const pubKey = crypto.createPublicKey({
-            key: Buffer.from(telnyxPublicKey, "base64"),
-            format: "der",
-            type: "spki",
-          });
-          const valid = crypto.verify(null, message, pubKey, Buffer.from(signature, "base64"));
+          const valid = verifyTelnyxSignature(rawPayload, timestamp, signature, telnyxPublicKey);
           if (!valid) return res.status(401).json({ error: "Invalid signature" });
         } else {
           console.warn("[Telnyx] TELNYX_PUBLIC_KEY configurée mais headers de signature absents");
         }
       }
 
-      const event = req.body?.data;
-      if (!event || event.event_type !== "message.received") return res.sendStatus(200);
+      const sms = parseTelnyxMessageReceived(req.body);
+      if (!sms) return res.sendStatus(200);
 
-      const payload = event.payload;
-      const toNumber: string | undefined = payload?.to?.[0]?.phone_number;
-      const fromNumber: string | undefined = payload?.from?.phone_number;
-      const text: string | undefined = payload?.text;
-      const msgId: string | undefined = payload?.id;
-      const receivedAt = payload?.received_at ? new Date(payload.received_at) : new Date();
+      const result = await processTelnyxInboundSms(sms, storage);
 
-      if (!toNumber || !fromNumber || !text) return res.sendStatus(200);
-
-      const phoneNumber = await storage.getPhoneNumberByNumber(toNumber);
-      if (!phoneNumber) {
-        console.warn(`[Telnyx] SMS reçu pour ${toNumber} — numéro inconnu en base`);
+      if (!result.stored) {
+        if (result.reason === "unknown_number") {
+          console.warn(`[Telnyx] SMS reçu pour ${sms.toNumber} — numéro inconnu en base`);
+        }
+        // duplicate → silently ignore (no log spam)
         return res.sendStatus(200);
       }
 
-      if (msgId) {
-        const existing = await storage.getMessageByTwilioSid(msgId);
-        if (existing) return res.sendStatus(200);
-      }
-
-      await storage.createMessage({
-        phoneNumberId: phoneNumber.id,
-        twilioMessageSid: msgId ?? null,
-        sender: fromNumber,
-        content: text,
-        receivedAt,
-      });
-      await storage.incrementSmsReceivedCount(phoneNumber.id);
-
-      const activeRes = await storage.getActiveReservation(phoneNumber.id);
+      const phoneNumber = await storage.getPhoneNumberByNumber(sms.toNumber);
+      const activeRes = phoneNumber ? await storage.getActiveReservation(phoneNumber.id) : null;
+      const { fromNumber, text } = sms;
 
       // Lookup fire-and-forget sur l'expéditeur (carrier/type de ligne)
       // Ne bloque pas la réponse webhook — coût : 1 appel API Telnyx
       lookupPhoneNumber(fromNumber).then((lookup) => {
-        const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
+        const flag = phoneNumber?.country === "france" ? "🇫🇷" : phoneNumber?.country === "canada" ? "🇨🇦" : "🇺🇸";
         const lineEmoji: Record<string, string> = { mobile: "📱", landline: "☎️", voip: "💻", unknown: "❓" };
         const lineTag = lookup
           ? `${lineEmoji[lookup.lineType] ?? "📡"} ${lookup.lineType.toUpperCase()} — ${lookup.carrierName}${lookup.callerName ? ` (${lookup.callerName})` : ""}`
@@ -2151,10 +2129,10 @@ export async function registerRoutes(
         }
       }).catch(() => {
         if (activeRes?.telegramChatId) {
-          const flag = phoneNumber.country === "france" ? "🇫🇷" : phoneNumber.country === "canada" ? "🇨🇦" : "🇺🇸";
+          const flag = phoneNumber?.country === "france" ? "🇫🇷" : phoneNumber?.country === "canada" ? "🇨🇦" : "🇺🇸";
           const tgText =
             `📩 <b>Nouveau SMS reçu</b>\n` +
-            `Sur votre numéro : ${flag} <code>${phoneNumber.number}</code>\n` +
+            `Sur votre numéro : ${flag} <code>${phoneNumber?.number ?? sms.toNumber}</code>\n` +
             `De : <code>${fromNumber}</code>\n` +
             `Message : <code>${text}</code>\n` +
             `📅 ${new Date().toLocaleString("fr-FR")}`;
