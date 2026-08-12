@@ -159,6 +159,7 @@ export interface AvailableNumberToPurchase {
   voiceCapable: boolean;
   addressRequired: boolean;
   monthlyFee?: number;
+  numberType?: "local" | "mobile" | "toll-free" | "voip" | "unknown";
 }
 
 /**

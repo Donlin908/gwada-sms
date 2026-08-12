@@ -95,7 +95,26 @@ export async function checkAndAlertHighUsage(): Promise<number> {
 
 const DEFAULT_MAX_NUMBERS_PER_COUNTRY = 10;
 
+// Verrou en mémoire : empêche deux cycles `checkAndAutoPurchase` de tourner
+// en même temps (ex: cycle planifié + appel admin manuel). Node.js est
+// mono-thread, donc ce booléen est une exclusion mutuelle fiable dans un
+// seul processus.
+let autoPurchaseLock = false;
+
 export async function checkAndAutoPurchase(): Promise<string[]> {
+  if (autoPurchaseLock) {
+    console.log("[Monitor] Auto-purchase already running — skipping concurrent cycle");
+    return [];
+  }
+  autoPurchaseLock = true;
+  try {
+    return await _checkAndAutoPurchaseInner();
+  } finally {
+    autoPurchaseLock = false;
+  }
+}
+
+async function _checkAndAutoPurchaseInner(): Promise<string[]> {
   if (!isTwilioConfigured()) {
     console.log("Twilio not configured, skipping auto-purchase");
     return [];

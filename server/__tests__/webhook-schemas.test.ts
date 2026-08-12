@@ -51,7 +51,7 @@ describe("Webhook Schema Validation — Telnyx", () => {
 
       expect(() => {
         validateTelnyxWebhook(invalid);
-      }).toThrow("Received input does not match the expected schema");
+      }).toThrow("[Telnyx Webhook] Validation failed");
     });
 
     it("rejette phone_number invalide (sans +)", () => {
@@ -79,7 +79,7 @@ describe("Webhook Schema Validation — Telnyx", () => {
           payload: {
             ...validTelnyxPayload.data.payload,
             from: {
-              phone_number: "+336876543211111", // 16 chiffres
+              phone_number: "+3368765432111111", // 16 chiffres après le +
             },
           },
         },
