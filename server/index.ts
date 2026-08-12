@@ -25,6 +25,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
+import { runStartupMigrations } from "./db-migrate";
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -166,6 +167,9 @@ export function log(message: string, source = "express") {
 }
 
 async function main() {
+  // Migrations DB au démarrage — idempotentes (ADD COLUMN IF NOT EXISTS)
+  await runStartupMigrations();
+
   // Startup guard: warn loudly if webhook secret is missing
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error(

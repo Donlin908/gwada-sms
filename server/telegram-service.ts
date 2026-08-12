@@ -85,6 +85,28 @@ export async function notifyNewPayment(options: {
   );
 }
 
+export async function notifyAutoPurchaseAttempt(phoneNumber: string, country: string, provider: string): Promise<void> {
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
+  const countryLabel = country === "france" ? "France" : country === "canada" ? "Canada" : "USA";
+  await sendAdminMessage(
+    `⏳ <b>Tentative d'achat automatique</b>\n` +
+    `Numéro candidat : ${flag} <code>${phoneNumber}</code> (${countryLabel})\n` +
+    `Provider : ${provider}\n` +
+    `📅 ${new Date().toLocaleString("fr-FR")}`
+  );
+}
+
+export async function notifyAutoPurchaseCapReached(country: string, count: number, maxPerDay: number): Promise<void> {
+  const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
+  await sendAdminMessage(
+    `🛑 <b>Plafond d'achat journalier atteint</b>\n` +
+    `Pays : ${flag} ${country.toUpperCase()}\n` +
+    `Achats aujourd'hui : <b>${count}/${maxPerDay}</b>\n` +
+    `L'achat automatique reprendra demain (UTC) ou après modification du paramètre <code>max_purchases_per_day</code>.\n` +
+    `📅 ${new Date().toLocaleString("fr-FR")}`
+  );
+}
+
 export async function notifyNumberPurchased(phoneNumber: string, country: string, reason: string): Promise<void> {
   const flag = country === "france" ? "🇫🇷" : country === "canada" ? "🇨🇦" : "🇺🇸";
   const countryLabel = country === "france" ? "France" : country === "canada" ? "Canada" : "USA";

@@ -5,6 +5,32 @@ import { listTelnyxNumbers } from "./telnyx-service";
 import { getProvider, isProviderConfigured } from "./sms-provider";
 import { autoSearchAvailableNumbers, autoFallbackPurchase, optimalNumberTypeForCountry, type NumberFilterCriteria } from "./number-purchase";
 import * as telegram from "./telegram-service";
+
+// ── Plafond d'achat journalier — fonctions pures (exportées pour les tests) ──
+
+export function parseDailyPurchaseData(raw: string | undefined): { date: string; count: number } {
+  if (!raw) return { date: "", count: 0 };
+  try { return JSON.parse(raw); } catch { return { date: "", count: 0 }; }
+}
+
+/** Retourne true si le plafond journalier est atteint pour aujourd'hui (UTC). */
+export function isDailyCapReached(
+  data: { date: string; count: number },
+  maxPerDay: number,
+  todayUtc: string
+): boolean {
+  if (data.date !== todayUtc) return false; // nouveau jour → compteur remis à zéro
+  return data.count >= maxPerDay;
+}
+
+/** Retourne un nouvel objet avec le compteur incrémenté (ou remis à 1 si nouveau jour). */
+export function buildIncrementedDailyData(
+  data: { date: string; count: number },
+  todayUtc: string
+): { date: string; count: number } {
+  if (data.date !== todayUtc) return { date: todayUtc, count: 1 };
+  return { date: todayUtc, count: data.count + 1 };
+}
 import type { Country } from "@shared/schema";
 
 const USAGE_ALERT_THRESHOLD = 8;
@@ -83,7 +109,12 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
   
   const minPerCountry = parseInt(await storage.getSetting("min_numbers_per_country") || String(MIN_NUMBERS_PER_COUNTRY));
   const maxPerCountry = parseInt(await storage.getSetting("max_numbers_per_country") || String(DEFAULT_MAX_NUMBERS_PER_COUNTRY));
-  
+  const maxPurchasesPerDay = parseInt(await storage.getSetting("max_purchases_per_day") || "1");
+
+  // Plafond journalier : chaque achat est compté dans un setting JSON horodaté (UTC)
+  const todayUtc = new Date().toISOString().slice(0, 10); // "2026-08-12"
+  const dailyData = parseDailyPurchaseData(await storage.getSetting("auto_purchase_daily"));
+
   const allNumbers = await storage.getAllPhoneNumbers();
   const purchasedNumbers: string[] = [];
   
@@ -163,6 +194,20 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           continue;
         }
 
+        // ── Plafond journalier : vérification avant chaque achat ───────────
+        // Relit dailyData depuis le setting pour prendre en compte les achats
+        // effectués dans le même cycle (plusieurs pays).
+        const currentDailyRaw = await storage.getSetting("auto_purchase_daily");
+        const currentDailyData = parseDailyPurchaseData(currentDailyRaw);
+        if (isDailyCapReached(currentDailyData, maxPurchasesPerDay, todayUtc)) {
+          console.log(`[Monitor] ${country.toUpperCase()} : plafond journalier atteint (${currentDailyData.count}/${maxPurchasesPerDay}/jour). Achat suspendu.`);
+          await telegram.notifyAutoPurchaseCapReached(country, currentDailyData.count, maxPurchasesPerDay);
+          break;
+        }
+
+        // ── Notification Telegram AVANT l'achat ───────────────────────────
+        await telegram.notifyAutoPurchaseAttempt(num.phoneNumber, country, "twilio").catch(() => {});
+
         // ✨ Nouvelle: Achat avec fallback automatique (Twilio → Telnyx)
         const result = await autoFallbackPurchase(
           num.phoneNumber,
@@ -184,6 +229,11 @@ export async function checkAndAutoPurchase(): Promise<string[]> {
           });
 
           purchasedNumbers.push(purchased.phoneNumber);
+
+          // ── Incrément du compteur journalier ─────────────────────────────
+          const newDailyData = buildIncrementedDailyData(currentDailyData, todayUtc);
+          await storage.setSetting("auto_purchase_daily", JSON.stringify(newDailyData));
+          console.log(`[Monitor] Compteur journalier : ${newDailyData.count}/${maxPurchasesPerDay}`);
 
           const reason = `Nombre de numéros insuffisant (${validAvailableNumbers.length}/${minPerCountry}) — acheté via ${provider}`;
           await sendNewNumberNotification({

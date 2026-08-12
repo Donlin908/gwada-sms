@@ -59,6 +59,7 @@ const adminSettingsSchema = z.object({
   autoPurchaseEnabled: z.boolean().optional(),
   minNumbersPerCountry: z.number().int().min(1).max(100).optional(),
   maxNumbersPerCountry: z.number().int().min(1).max(100).optional(),
+  maxPurchasesPerDay: z.number().int().min(0).max(10).optional(),
   adminEmail: z.string().email().optional(),
   maxUsagesDaily: z.number().int().min(1).max(1000).optional(),
   maxUsagesWeekly: z.number().int().min(1).max(1000).optional(),
@@ -1054,6 +1055,7 @@ export async function registerRoutes(
       const franceBundleRequired = await storage.getSetting("france_bundle_required") || "false";
       const maintenanceMode = await storage.getSetting("maintenance_mode") || "false";
       const maxReservationsWithoutSms = await storage.getSetting("max_reservations_without_sms") || "3";
+      const maxPurchasesPerDay = await storage.getSetting("max_purchases_per_day") || "1";
       
       res.json({
         ...stats,
@@ -1062,6 +1064,7 @@ export async function registerRoutes(
           autoPurchaseEnabled: autoPurchaseEnabled === "true",
           minNumbersPerCountry: parseInt(minPerCountry),
           maxNumbersPerCountry: parseInt(maxPerCountry),
+          maxPurchasesPerDay: parseInt(maxPurchasesPerDay),
           maxUsagesDaily: parseInt(maxUsagesDaily),
           maxUsagesWeekly: parseInt(maxUsagesWeekly),
           maxUsagesMonthly: parseInt(maxUsagesMonthly),
@@ -1092,7 +1095,7 @@ export async function registerRoutes(
         });
       }
       
-      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, maxNumbersPerCountry, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode, maxReservationsWithoutSms } = parseResult.data;
+      const { usageAlertThreshold, autoPurchaseEnabled, minNumbersPerCountry, maxNumbersPerCountry, maxPurchasesPerDay, adminEmail, maxUsagesDaily, maxUsagesWeekly, maxUsagesMonthly, maintenanceMode, maxReservationsWithoutSms } = parseResult.data;
       
       if (usageAlertThreshold !== undefined) {
         await storage.setSetting("usage_alert_threshold", String(usageAlertThreshold));
@@ -1105,6 +1108,9 @@ export async function registerRoutes(
       }
       if (maxNumbersPerCountry !== undefined) {
         await storage.setSetting("max_numbers_per_country", String(maxNumbersPerCountry));
+      }
+      if (maxPurchasesPerDay !== undefined) {
+        await storage.setSetting("max_purchases_per_day", String(maxPurchasesPerDay));
       }
       if (adminEmail !== undefined) {
         await storage.setSetting("admin_email", adminEmail);
